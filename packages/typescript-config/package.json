@@ -1,0 +1,9 @@
+{
+	"name": "@context0/typescript-config",
+	"type": "module",
+	"version": "0.0.0",
+	"private": true,
+	"devDependencies": {
+		"@effect/language-service": "catalog:typescript"
+	}
+}

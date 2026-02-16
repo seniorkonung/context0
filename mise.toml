@@ -1,0 +1,25 @@
+experimental_monorepo_root = true
+monorepo.config_roots = ["packages/*"]
+
+[env]
+_.path = './node_modules/.bin'
+
+[tools]
+biome = "2"
+bun = "1"
+lefthook = "2"
+node = "25.2"
+"npm:zx" = "8"
+
+[tasks]
+prepare = [
+  "lefthook install",
+  "bun install --frozen-lockfile",
+  # "mise run //...:build",
+]
+
+[tasks.precommit]
+depends = [":precommit-check"]
+
+[tasks.prepush]
+depends = [":prepush-test"]

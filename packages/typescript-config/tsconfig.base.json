@@ -1,0 +1,59 @@
+{
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"compilerOptions": {
+		// Strict type checking
+		"strict": true,
+		"exactOptionalPropertyTypes": true,
+		"noImplicitAny": true,
+		"noImplicitThis": true,
+		"strictNullChecks": true,
+		"noUncheckedIndexedAccess": false,
+
+		// Module resolution
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		"moduleDetection": "force",
+		"composite": true,
+		"baseUrl": ".",
+		"resolveJsonModule": true,
+		"esModuleInterop": false,
+		"customConditions": ["ts"],
+
+		// Emit options
+		"declaration": true,
+		"declarationMap": true,
+		"sourceMap": true,
+		"incremental": true,
+		"removeComments": false,
+		"isolatedModules": true,
+
+		// Language and target
+		"target": "ES2022",
+		"lib": ["ES2022", "DOM"],
+
+		// Lint checks
+		"noUnusedLocals": true,
+		"noFallthroughCasesInSwitch": true,
+		"forceConsistentCasingInFileNames": true,
+
+		// Disabled checks
+		"noImplicitReturns": false,
+		"noUnusedParameters": false,
+
+		// JS support
+		"allowJs": false,
+		"checkJs": false,
+
+		// Misc
+		"types": [],
+		"downlevelIteration": true,
+		"skipLibCheck": true,
+		"noEmitOnError": false,
+		"noErrorTruncation": false,
+		"plugins": [
+			{
+				"name": "@effect/language-service"
+			}
+		]
+	}
+}

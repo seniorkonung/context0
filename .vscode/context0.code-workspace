@@ -1,0 +1,57 @@
+{
+	"extensions": {
+		"recommendations": [
+			"redhat.vscode-yaml",
+			"eamodio.gitlens",
+			"github.vscode-github-actions",
+			"dotenv.dotenv-vscode",
+			"tamasfe.even-better-toml",
+			"oven.bun-vscode",
+			"biomejs.biome",
+			"hverlin.mise-vscode"
+		]
+	},
+	"folders": [
+		{
+			"name": "🏠",
+			"path": "../"
+		},
+		{
+			"name": "📦 core",
+			"path": "../packages/core"
+		},
+		{
+			"name": "📦 typescript-config",
+			"path": "../packages/typescript-config"
+		}
+	],
+	"settings": {
+		"[toml]": {
+			"editor.defaultFormatter": "tamasfe.even-better-toml"
+		},
+		"[yaml]": {
+			"editor.defaultFormatter": "redhat.vscode-yaml"
+		},
+		"editor.codeActionsOnSave": {
+			"source.fixAll.biome": "explicit"
+		},
+		"editor.defaultFormatter": "biomejs.biome",
+		"editor.formatOnSave": true,
+		"editor.tabSize": 2,
+		"files.associations": {
+			".dockerignore": "ignore"
+		},
+		"search.exclude": {
+			".expo": true,
+			".tsbuildinfo": true,
+			".turbo": true,
+			"build": true,
+			"bun.lock": true,
+			"dist": true,
+			"node_modules": true
+		},
+		"typescript.enablePromptUseWorkspaceTsdk": true,
+		"typescript.preferences.importModuleSpecifier": "relative",
+		"typescript.tsdk": "📦 core/node_modules/typescript/lib"
+	}
+}

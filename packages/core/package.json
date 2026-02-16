@@ -1,0 +1,14 @@
+{
+	"name": "@context0/core",
+	"type": "module",
+	"version": "0.0.0",
+	"private": true,
+	"dependencies": {
+		"effect": "catalog:effect",
+		"@effect/platform-bun": "catalog:effect"
+	},
+	"devDependencies": {
+		"typescript": "catalog:typescript",
+		"@context0/typescript-config": "workspace:*"
+	}
+}

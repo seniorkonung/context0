@@ -1,0 +1,62 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.3.14/schema.json",
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": {
+					"level": "on",
+					"options": {
+						"groups": [
+							[":BUN:", ":NODE:"],
+							":BLANK_LINE:",
+							":URL:",
+							":BLANK_LINE:",
+							[
+								"effect/**",
+								"@effect/**",
+								":PACKAGE:",
+								":PACKAGE_WITH_PROTOCOL:"
+							],
+							":BLANK_LINE:",
+							":ALIAS:",
+							":BLANK_LINE:",
+							":PATH:"
+						],
+						"identifierOrder": "natural"
+					}
+				},
+				"useSortedAttributes": "on",
+				"useSortedKeys": "on",
+				"useSortedProperties": "on"
+			}
+		},
+		"enabled": true
+	},
+	"files": {
+		"includes": ["**", "!**/build", "!**/dist", "!**/node_modules", "!bun.lock"]
+	},
+	"formatter": {
+		"enabled": true
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"nursery": {
+				"noImportCycles": "error"
+			},
+			"recommended": true,
+			"style": {
+				"useImportType": {
+					"level": "error",
+					"options": { "style": "inlineType" }
+				}
+			}
+		}
+	},
+	"overrides": [
+		{
+			"assist": { "actions": { "source": { "useSortedKeys": "off" } } },
+			"includes": ["**/*.json", "**/*.jsonc", ".vscode/oohey.code-workspace"]
+		}
+	]
+}

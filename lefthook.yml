@@ -1,0 +1,6 @@
+pre-commit:
+  jobs:
+    - run: mise run //:precommit
+# pre-push:
+#   jobs:
+#     - run: mise run //:prepush
