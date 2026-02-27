@@ -24,10 +24,7 @@
 						],
 						"identifierOrder": "natural"
 					}
-				},
-				"useSortedAttributes": "on",
-				"useSortedKeys": "on",
-				"useSortedProperties": "on"
+				}
 			}
 		},
 		"enabled": true
@@ -41,8 +38,14 @@
 	"linter": {
 		"enabled": true,
 		"rules": {
+			"correctness": {
+				"useYield": "off"
+			},
 			"nursery": {
 				"noImportCycles": "error"
+			},
+			"suspicious": {
+				"noShadowRestrictedNames": "off"
 			},
 			"recommended": true,
 			"style": {

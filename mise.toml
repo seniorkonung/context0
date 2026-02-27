@@ -17,6 +17,7 @@ prepare = [
   "bun install --frozen-lockfile",
   # "mise run //...:build",
 ]
+scratchpad = ["mise run //packages/...:build", "bun run ./scratchpad/index.ts"]
 
 [tasks.precommit]
 depends = [":precommit-check"]

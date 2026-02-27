@@ -3,12 +3,20 @@
 	"type": "module",
 	"version": "0.0.0",
 	"private": true,
+	"exports": {
+		"./*": {
+			"types": "./src/*.ts",
+			"import": "./build/src/*.js"
+		}
+	},
 	"dependencies": {
 		"effect": "catalog:effect",
-		"@effect/platform-bun": "catalog:effect"
+		"fast-glob": "^3.3.3",
+		"js-yaml": "^4.1.1"
 	},
 	"devDependencies": {
-		"typescript": "catalog:typescript",
-		"@context0/typescript-config": "workspace:*"
+		"@context0/typescript-config": "workspace:*",
+		"@types/js-yaml": "^4.0.9",
+		"typescript": "catalog:typescript"
 	}
 }

@@ -3,12 +3,13 @@
 	"type": "module",
 	"workspaces": {
 		"packages": [
-			"packages/*"
+			"packages/*",
+			"scratchpad"
 		],
 		"catalogs": {
 			"effect": {
 				"effect": "https://pkg.pr.new/Effect-TS/effect-smol/effect@f9d1486",
-				"@effect/platform-bun": "https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-bun@f9d1486"
+				"@effect/platform-node": "https://pkg.pr.new/Effect-TS/effect-smol/@effect/platform-node@f9d1486"
 			},
 			"typescript": {
 				"typescript": "5.9.3",

@@ -3,3 +3,4 @@ _.path = './node_modules/.bin'
 
 [tasks]
 check = ['tsc -b tsconfig.json', 'biome check']
+build = 'tsc -b tsconfig.json'
