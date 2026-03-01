@@ -1,4 +1,5 @@
 import * as Array from "effect/Array";
+import * as Boolean from "effect/Boolean";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -11,14 +12,24 @@ import { load } from "js-yaml";
 
 import {
 	CONTEXT0_CONFIG_FILE_NAME,
+	CONTEXT0_LOCK_FILE_DEFAULT_CONTENT,
 	CONTEXT0_LOCK_FILE_NAME,
+	CONTEXT0_ROOT_CONFIG_FILE_DEFAULT_CONTENT,
 } from "./Constants.js";
-import * as Context0 from "./Context0.js";
 import {
+	InvalidEntrypointConfig,
+	InvalidLockfile,
+	InvalidRootConfig,
+	RootDirAlreadyDefined,
 	RootDirNotFound,
-	type Workspace,
-	WorkspaceService,
-} from "./Workspace.js";
+} from "./Errors.js";
+import {
+	AbsolutePath,
+	EntrypointConfig,
+	Lockfile,
+	RootConfig,
+} from "./Models.js";
+import { type Workspace, WorkspaceService } from "./Workspace.js";
 
 /**
  * @group Layers
@@ -28,13 +39,10 @@ export const layer = Layer.effect(
 	Effect.gen(function* () {
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
-		return {
-			init: Effect.fn("init")(function* () {
-				return 1 as any;
-			}),
 
-			discover: Effect.fn("discover")(function* (_startDir) {
-				const startDir = Context0.Path.makeUnsafe(
+		const discover = Effect.fn("discover")(
+			function* (_startDir) {
+				const startDir = AbsolutePath.makeUnsafe(
 					path.resolve(_startDir ?? "."),
 				);
 
@@ -58,7 +66,7 @@ export const layer = Layer.effect(
 								startDir,
 							}).asEffect(),
 					}),
-					Effect.andThen(SchemaParser.decodeEffect(Context0.Path)),
+					Effect.andThen(SchemaParser.decodeEffect(AbsolutePath)),
 					Effect.catchIf(SchemaIssue.isIssue, Effect.die),
 				);
 
@@ -66,10 +74,12 @@ export const layer = Layer.effect(
 					.readFileString(path.resolve(rootDir, CONTEXT0_CONFIG_FILE_NAME))
 					.pipe(
 						Effect.andThen((content) => Effect.sync(() => load(content))),
-						Effect.andThen(
-							SchemaParser.decodeUnknownEffect(Context0.RootConfig),
+						Effect.andThen(SchemaParser.decodeUnknownEffect(RootConfig)),
+						Effect.catchIf(SchemaIssue.isIssue, (reason) =>
+							new InvalidRootConfig({
+								reason,
+							}).asEffect(),
 						),
-						Effect.catchIf(SchemaIssue.isIssue, Effect.die),
 						Effect.when(
 							fs.exists(path.resolve(rootDir, CONTEXT0_CONFIG_FILE_NAME)),
 						),
@@ -98,7 +108,7 @@ export const layer = Layer.effect(
 					Effect.andThen(
 						Effect.forEach(
 							Effect.fnUntraced(function* (dir) {
-								const dirPath = Context0.Path.makeUnsafe(
+								const dirPath = AbsolutePath.makeUnsafe(
 									path.resolve(rootDir, dir),
 								);
 								const configPath = path.resolve(
@@ -112,11 +122,13 @@ export const layer = Layer.effect(
 											Effect.sync(() => load(content)),
 										),
 										Effect.andThen(
-											SchemaParser.decodeUnknownEffect(
-												Context0.EntrypointConfig,
-											),
+											SchemaParser.decodeUnknownEffect(EntrypointConfig),
 										),
-										Effect.catchIf(SchemaIssue.isIssue, Effect.die),
+										Effect.catchIf(SchemaIssue.isIssue, (reason) =>
+											new InvalidEntrypointConfig({
+												reason,
+											}).asEffect(),
+										),
 										Effect.when(fs.exists(configPath)),
 									),
 								};
@@ -129,8 +141,12 @@ export const layer = Layer.effect(
 					.readFileString(path.resolve(rootDir, CONTEXT0_LOCK_FILE_NAME))
 					.pipe(
 						Effect.andThen((content) => Effect.sync(() => load(content))),
-						Effect.andThen(SchemaParser.decodeUnknownEffect(Context0.Lockfile)),
-						Effect.catchIf(SchemaIssue.isIssue, Effect.die),
+						Effect.andThen(SchemaParser.decodeUnknownEffect(Lockfile)),
+						Effect.catchIf(SchemaIssue.isIssue, (reason) =>
+							new InvalidLockfile({
+								reason,
+							}).asEffect(),
+						),
 					);
 
 				return {
@@ -140,7 +156,64 @@ export const layer = Layer.effect(
 					rootConfig,
 					rootDir,
 				} satisfies Workspace;
+			},
+			Effect.catchTags({
+				PlatformError: Effect.die,
 			}),
+		);
+
+		return {
+			init: Effect.fn("init")(
+				function* (dir) {
+					const rootDir = AbsolutePath.makeUnsafe(path.resolve(dir ?? "."));
+
+					const workspace = yield* discover(rootDir).pipe(
+						Effect.map(Option.some),
+						Effect.catchTags({
+							RootDirNotFound: () => Effect.succeedNone,
+							InvalidEntrypointConfig: Effect.die,
+							InvalidLockfile: Effect.die,
+							InvalidRootConfig: Effect.die,
+						}),
+					);
+					if (workspace._tag === "Some") {
+						if (workspace.value.rootDir === rootDir) return workspace.value;
+						return yield* new RootDirAlreadyDefined({
+							currentDir: rootDir,
+							parentRootDir: workspace.value.rootDir,
+						});
+					}
+
+					yield* fs.writeFileString(
+						path.resolve(rootDir, CONTEXT0_LOCK_FILE_NAME),
+						CONTEXT0_LOCK_FILE_DEFAULT_CONTENT,
+					);
+
+					const configFile = path.resolve(rootDir, CONTEXT0_CONFIG_FILE_NAME);
+					yield* fs
+						.writeFileString(
+							configFile,
+							CONTEXT0_ROOT_CONFIG_FILE_DEFAULT_CONTENT,
+						)
+						.pipe(
+							Effect.when(fs.exists(configFile).pipe(Effect.map(Boolean.not))),
+						);
+
+					return yield* discover(rootDir).pipe(
+						Effect.catchTags({
+							RootDirNotFound: Effect.die,
+							InvalidEntrypointConfig: Effect.die,
+							InvalidLockfile: Effect.die,
+							InvalidRootConfig: Effect.die,
+						}),
+					);
+				},
+				Effect.catchTags({
+					PlatformError: Effect.die,
+				}),
+			),
+
+			discover,
 		};
 	}),
 );

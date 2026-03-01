@@ -12,11 +12,13 @@
 	"dependencies": {
 		"effect": "catalog:effect",
 		"fast-glob": "^3.3.3",
-		"js-yaml": "^4.1.1"
+		"js-yaml": "^4.1.1",
+		"picomatch": "^4.0.3"
 	},
 	"devDependencies": {
 		"@context0/typescript-config": "workspace:*",
 		"@types/js-yaml": "^4.0.9",
+		"@types/picomatch": "^4.0.2",
 		"typescript": "catalog:typescript"
 	}
 }

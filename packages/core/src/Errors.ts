@@ -1,0 +1,106 @@
+import * as Data from "effect/Data";
+import type * as SchemaIssue from "effect/SchemaIssue";
+
+import { type AbsolutePath, type Tag } from "./Models.js";
+
+/**
+ * @group Errors
+ */
+export class RootDirNotFound extends Data.TaggedError("RootDirNotFound")<{
+	readonly startDir: AbsolutePath;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class RootDirAlreadyDefined extends Data.TaggedError(
+	"RootDirAlreadyDefined",
+)<{
+	readonly currentDir: AbsolutePath;
+	readonly parentRootDir: AbsolutePath;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class InvalidLockfile extends Data.TaggedError("InvalidLockfile")<{
+	readonly reason: SchemaIssue.Issue;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class InvalidRootConfig extends Data.TaggedError("InvalidRootConfig")<{
+	readonly reason: SchemaIssue.Issue;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class InvalidEntrypointConfig extends Data.TaggedError(
+	"InvalidEntrypointConfig",
+)<{
+	readonly reason: SchemaIssue.Issue;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class InvalidMarkdownAnnotations extends Data.TaggedError(
+	"InvalidMarkdownAnnotations",
+)<{
+	readonly reason: SchemaIssue.Issue;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class MarkdownAnnotationsNotFound extends Data.TaggedError(
+	"MarkdownAnnotationsNotFound",
+)<{
+	readonly file: AbsolutePath;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class SyncFailed extends Data.TaggedError("SyncFailed")<{
+	readonly reason:
+		| RootDirNotFound
+		| InvalidLockfile
+		| InvalidRootConfig
+		| InvalidEntrypointConfig
+		| InvalidMarkdownAnnotations
+		| MarkdownAnnotationsNotFound
+		| CyclicTagDependency
+		| DuplicateTagDefinition
+		| UnresolvedTagDependency;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class CyclicTagDependency extends Data.TaggedError(
+	"CyclicTagDependency",
+)<{
+	readonly cycles: ReadonlyArray<ReadonlyArray<Tag>>;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class DuplicateTagDefinition extends Data.TaggedError(
+	"DuplicateTagDefinition",
+)<{
+	readonly tag: Tag;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class UnresolvedTagDependency extends Data.TaggedError(
+	"UnresolvedTagDependency",
+)<{
+	readonly tag: Tag;
+	readonly referencedBy: Tag;
+}> {}
