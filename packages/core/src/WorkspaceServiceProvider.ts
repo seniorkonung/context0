@@ -23,12 +23,8 @@ import {
 	RootDirAlreadyDefined,
 	RootDirNotFound,
 } from "./Errors.js";
-import {
-	AbsolutePath,
-	EntrypointConfig,
-	Lockfile,
-	RootConfig,
-} from "./Models.js";
+import { Lockfile } from "./Lockfile.js";
+import { AbsolutePath, EntrypointConfig, RootConfig } from "./Models.js";
 import { type Workspace, WorkspaceService } from "./Workspace.js";
 
 /**
@@ -217,3 +213,8 @@ export const layer = Layer.effect(
 		};
 	}),
 );
+
+/**
+ * @group Layers
+ */
+export const live = layer;

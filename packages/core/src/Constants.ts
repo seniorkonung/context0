@@ -1,6 +1,7 @@
 import { dump } from "js-yaml";
 
-import { type Lockfile, type RootConfig } from "./Models.js";
+import { type Lockfile } from "./Lockfile.js";
+import { type RootConfig } from "./Models.js";
 
 export const CONTEXT0_LOCK_FILE_NAME = "context0.lock.yaml";
 export const CONTEXT0_CONFIG_FILE_NAME = "context0.yaml";

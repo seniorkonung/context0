@@ -1,3 +1,4 @@
+import type * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as Struct from "effect/Struct";
 
@@ -73,7 +74,9 @@ export type Hash = Schema.Schema.Type<typeof Hash>;
 /**
  * @group Schemas
  */
-export const Tag = Schema.NonEmptyString.pipe(Schema.brand("Tag")).annotate({
+export const Tag = Schema.NonEmptyString.pipe(
+	Schema.brand("Tag"),
+).annotate({
 	identifier: "Tag",
 });
 /**
@@ -84,15 +87,15 @@ export type Tag = Schema.Schema.Type<typeof Tag>;
 /**
  * @group Schemas
  */
-export const TagFilter = Schema.NonEmptyString.pipe(
-	Schema.brand("TagFilter"),
+export const FileQuery = Schema.NonEmptyString.pipe(
+	Schema.brand("FileQuery"),
 ).annotate({
-	identifier: "TagFilter",
+	identifier: "FileQuery",
 });
 /**
  * @group Models
  */
-export type TagFilter = Schema.Schema.Type<typeof TagFilter>;
+export type FileQuery = Schema.Schema.Type<typeof FileQuery>;
 
 /**
  * @group Schemas
@@ -126,6 +129,11 @@ export type Scope = Schema.Schema.Type<typeof Scope>;
  */
 export type CheckStep =
 	| { not: CheckStep }
+	| { oneOf: ReadonlyArray<CheckStep> }
+	| { anyOf: ReadonlyArray<CheckStep> }
+	| { allOf: ReadonlyArray<CheckStep> }
+	| { noneOf: ReadonlyArray<CheckStep> }
+	| { if: CheckStep; then: CheckStep; else?: CheckStep }
 	| { glob: Pattern }
 	| { basenamePattern: Pattern }
 	| { tags: ReadonlyArray<Tag> }
@@ -133,6 +141,11 @@ export type CheckStep =
 
 type CheckStepEncoded =
 	| { not: CheckStepEncoded }
+	| { oneOf: ReadonlyArray<CheckStepEncoded> }
+	| { anyOf: ReadonlyArray<CheckStepEncoded> }
+	| { allOf: ReadonlyArray<CheckStepEncoded> }
+	| { noneOf: ReadonlyArray<CheckStepEncoded> }
+	| { if: CheckStepEncoded; then: CheckStepEncoded; else?: CheckStepEncoded }
 	| { glob: Schema.Codec.Encoded<typeof Pattern> }
 	| { basenamePattern: Schema.Codec.Encoded<typeof Pattern> }
 	| { tags: ReadonlyArray<Schema.Codec.Encoded<typeof Tag>> }
@@ -151,8 +164,50 @@ export const CheckStep = Schema.Union([
 			(): Schema.Codec<CheckStep, CheckStepEncoded> => CheckStep,
 		),
 	}),
+	Schema.Struct({
+		oneOf: Schema.suspend(
+			(): Schema.Codec<
+				ReadonlyArray<CheckStep>,
+				ReadonlyArray<CheckStepEncoded>
+			> => Schema.Array(CheckStep),
+		),
+	}),
+	Schema.Struct({
+		anyOf: Schema.suspend(
+			(): Schema.Codec<
+				ReadonlyArray<CheckStep>,
+				ReadonlyArray<CheckStepEncoded>
+			> => Schema.Array(CheckStep),
+		),
+	}),
+	Schema.Struct({
+		allOf: Schema.suspend(
+			(): Schema.Codec<
+				ReadonlyArray<CheckStep>,
+				ReadonlyArray<CheckStepEncoded>
+			> => Schema.Array(CheckStep),
+		),
+	}),
+	Schema.Struct({
+		noneOf: Schema.suspend(
+			(): Schema.Codec<
+				ReadonlyArray<CheckStep>,
+				ReadonlyArray<CheckStepEncoded>
+			> => Schema.Array(CheckStep),
+		),
+	}),
+	Schema.Struct({
+		if: Schema.suspend(
+			(): Schema.Codec<CheckStep, CheckStepEncoded> => CheckStep,
+		),
+		then: Schema.suspend(
+			(): Schema.Codec<CheckStep, CheckStepEncoded> => CheckStep,
+		),
+		else: Schema.suspend(
+			(): Schema.Codec<CheckStep, CheckStepEncoded> => CheckStep,
+		).pipe(Schema.optionalKey),
+	}),
 	Schema.Struct({ glob: Pattern }),
-	Schema.Struct({ basenamePattern: Pattern }),
 	Schema.Struct({ tags: Schema.Array(Tag) }),
 	Schema.Struct({
 		cmd: Schema.Union([
@@ -216,39 +271,11 @@ export class EntrypointConfig extends Schema.Class<EntrypointConfig>(
 
 /**
  * @group Models
- * @group Schemas
  */
-export class MarkdownAnnotations extends Schema.Class<MarkdownAnnotations>(
-	"MarkdownAnnotations",
-)(
-	Schema.Struct({
-		_tag: Schema.Literal("MarkdownAnnotations").pipe(
-			Schema.withDecodingDefaultKey(() => "MarkdownAnnotations", {
-				encodingStrategy: "omit",
-			}),
-		),
-		depends: Schema.Array(Tag).pipe(Schema.OptionFromOptionalKey),
-		groupBy: Schema.Array(Pattern).pipe(Schema.OptionFromOptionalKey),
-		description: Schema.String.pipe(Schema.OptionFromOptionalKey),
-		scope: Scope,
-		tags: Schema.Array(Tag),
-	}).annotate({ identifier: "MarkdownAnnotations" }),
-) {}
-
-/**
- * @group Models
- * @group Schemas
- */
-export class Lockfile extends Schema.Opaque<Lockfile>()(
-	Schema.Record(
-		RelativePath,
-		Schema.Struct({
-			requiredTags: Schema.Array(Tag),
-			hash: Hash.pipe(Schema.OptionFromOptionalKey),
-			tags: Schema.Array(Tag),
-			annotations: MarkdownAnnotations.pipe(Schema.OptionFromOptionalKey),
-		}),
-	).annotate({
-		identifier: "Lockfile",
-	}),
-) {}
+export interface ConfigGroup {
+	readonly _tag: "ConfigGroup";
+	readonly dir: AbsolutePath;
+	readonly configs: ReadonlyArray<RootConfig | EntrypointConfig>;
+	readonly tagMap: Option.Option.Value<RootConfig["tags"]>;
+	readonly tagOrder: ReadonlyArray<Tag>;
+}

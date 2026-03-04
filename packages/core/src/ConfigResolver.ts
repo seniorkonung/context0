@@ -14,6 +14,7 @@ import {
 import {
 	type AbsolutePath,
 	type CheckStep,
+	type ConfigGroup,
 	type EntrypointConfig,
 	type RootConfig,
 	Tag,
@@ -25,11 +26,7 @@ import { type Workspace } from "./Workspace.js";
  */
 export interface ConfigResolver {
 	readonly _tag: "ConfigResolver";
-	readonly groups: ReadonlyArray<{
-		readonly dir: AbsolutePath;
-		readonly configs: ReadonlyArray<RootConfig | EntrypointConfig>;
-		readonly tagOrder: ReadonlyArray<Tag>;
-	}>;
+	readonly groups: ReadonlyArray<ConfigGroup>;
 }
 
 /**
@@ -64,21 +61,27 @@ export const build = (
 					Array.appendAll(
 						"not" in checkStep ? findAllExplicitDeps([checkStep.not]) : [],
 					),
-				),
-			),
-			Array.flatMap((tag) =>
-				Array.reduce(
-					tag.split("/"),
-					[] as ReadonlyArray<Tag>,
-					(tags, segment) =>
-						Array.append(
-							tags,
-							pipe(
-								Array.last(tags),
-								Option.map((last) => Tag.makeUnsafe(`${last}/${segment}`)),
-								Option.getOrElse(() => Tag.makeUnsafe(segment)),
-							),
-						),
+					Array.appendAll(
+						"allOf" in checkStep ? findAllExplicitDeps(checkStep.allOf) : [],
+					),
+					Array.appendAll(
+						"anyOf" in checkStep ? findAllExplicitDeps(checkStep.anyOf) : [],
+					),
+					Array.appendAll(
+						"oneOf" in checkStep ? findAllExplicitDeps(checkStep.oneOf) : [],
+					),
+					Array.appendAll(
+						"noneOf" in checkStep ? findAllExplicitDeps(checkStep.noneOf) : [],
+					),
+					Array.appendAll(
+						"if" in checkStep
+							? findAllExplicitDeps([
+									checkStep.if,
+									checkStep.then,
+									...Array.fromNullishOr(checkStep.else),
+								])
+							: [],
+					),
 				),
 			),
 		);
@@ -208,16 +211,26 @@ export const build = (
 			step2,
 			Array.map(({ graph, dir, configs }) => {
 				return {
+					_tag: "ConfigGroup",
 					dir,
 					configs,
+					tagMap: pipe(
+						configs,
+						Array.filterMap(({ tags }) => tags),
+						Array.reduce(
+							{} as Option.Option.Value<RootConfig["tags"]>,
+							(acc, tagMap) => Record.union(acc, tagMap, identity),
+						),
+					),
 					tagOrder: pipe(
 						Graph.indices(Graph.topo(graph)),
 						Array.fromIterable,
+						Array.reverse,
 						Array.map((nodeIndex) =>
 							Option.getOrThrow(Graph.getNode(graph, nodeIndex)),
 						),
 					),
-				};
+				} satisfies ConfigGroup;
 			}),
 			Array.sortWith(({ dir }) => dir, Order.flip(Order.String)),
 		),
@@ -225,40 +238,11 @@ export const build = (
 };
 
 /**
- * @group Methods
+ * @group Accessors
  */
-export const resolveTagOrder = (
+export const resolveGroup = (
 	resolver: ConfigResolver,
 	file: AbsolutePath,
-): Option.Option<ReadonlyArray<Tag>> => {
-	return pipe(
-		resolver.groups,
-		Array.findFirst(({ dir }) => file.startsWith(dir)),
-		Option.map(({ tagOrder }) => tagOrder),
-	);
-};
-
-/**
- * @group Methods
- */
-export const resolveTags = (
-	resolver: ConfigResolver,
-	file: AbsolutePath,
-): RootConfig["tags"] => {
-	const configs = pipe(
-		resolver.groups,
-		Array.findFirst(({ dir }) => file.startsWith(dir)),
-		Option.map(({ configs }) => configs),
-	);
-	if (configs._tag === "None") return Option.none();
-	return Option.some(
-		pipe(
-			configs.value,
-			Array.filterMap(({ tags }) => tags),
-			Array.reduce(
-				{} as Option.Option.Value<RootConfig["tags"]>,
-				(acc, tagMap) => Record.union(acc, tagMap, identity),
-			),
-		),
-	);
+): Option.Option<ConfigGroup> => {
+	return Array.findFirst(resolver.groups, ({ dir }) => file.startsWith(dir));
 };

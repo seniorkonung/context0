@@ -3,22 +3,12 @@ import * as ServiceMap from "effect/ServiceMap";
 
 import { type SyncFailed } from "./Errors.js";
 import {
+	type FileQuery,
 	type Pattern,
 	type Scope,
 	type Tag,
-	type TagFilter,
 	type WorkspacePath,
 } from "./Models.js";
-
-/**
- * @group Services
- */
-export class Check extends ServiceMap.Service<
-	Check,
-	{
-		readonly isSuccessful: () => Effect.Effect<boolean>;
-	}
->()("Check") {}
 
 /**
  * @group Namespaces
@@ -57,7 +47,7 @@ export class Context0 extends ServiceMap.Service<
 		/**
 		 * Получить список файлов, которые соответствуют фильтру тегов
 		 */
-		readonly getFiles: (filter: TagFilter) => Effect.Effect<ReadonlyArray<Tag>>;
+		readonly getFiles: (query: FileQuery) => Effect.Effect<ReadonlyArray<Tag>>;
 		/**
 		 * Получить требуемые теги для конкретного файла
 		 */

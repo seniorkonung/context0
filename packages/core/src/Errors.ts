@@ -1,7 +1,12 @@
 import * as Data from "effect/Data";
 import type * as SchemaIssue from "effect/SchemaIssue";
 
-import { type AbsolutePath, type Tag } from "./Models.js";
+import {
+	type AbsolutePath,
+	type FileQuery,
+	type Tag,
+	type WorkspacePath,
+} from "./Models.js";
 
 /**
  * @group Errors
@@ -58,7 +63,7 @@ export class InvalidMarkdownAnnotations extends Data.TaggedError(
 export class MarkdownAnnotationsNotFound extends Data.TaggedError(
 	"MarkdownAnnotationsNotFound",
 )<{
-	readonly file: AbsolutePath;
+	readonly file: WorkspacePath;
 }> {}
 
 /**
@@ -75,7 +80,11 @@ export class SyncFailed extends Data.TaggedError("SyncFailed")<{
 		| CyclicTagDependency
 		| DuplicateTagDefinition
 		| UnresolvedTagDependency;
-}> {}
+}> {
+	get message() {
+		return String(this.reason);
+	}
+}
 
 /**
  * @group Errors
@@ -102,5 +111,15 @@ export class UnresolvedTagDependency extends Data.TaggedError(
 	"UnresolvedTagDependency",
 )<{
 	readonly tag: Tag;
-	readonly referencedBy: Tag;
+	readonly referencedBy: Tag | WorkspacePath;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class InvalidFileQuery extends Data.TaggedError("InvalidFileQuery")<{
+	readonly query: FileQuery;
+	readonly start: number;
+	readonly end: number;
+	readonly reason?: SchemaIssue.Issue;
 }> {}

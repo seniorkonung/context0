@@ -45,7 +45,8 @@
 				"noImportCycles": "error"
 			},
 			"suspicious": {
-				"noShadowRestrictedNames": "off"
+				"noShadowRestrictedNames": "off",
+				"noThenProperty": "off"
 			},
 			"recommended": true,
 			"style": {

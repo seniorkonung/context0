@@ -9,10 +9,10 @@ import {
 	type RootDirAlreadyDefined,
 	type RootDirNotFound,
 } from "./Errors.js";
+import { type Lockfile } from "./Lockfile.js";
 import {
 	type AbsolutePath,
 	type EntrypointConfig,
-	type Lockfile,
 	type RootConfig,
 } from "./Models.js";
 

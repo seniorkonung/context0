@@ -24,7 +24,7 @@ export const load = (content: string): Option.Option<unknown> => {
 };
 
 /**
- * @group Methods
+ * @group Predicates
  */
 export const test = (content: string): boolean => {
 	return REGEX.test(content);
