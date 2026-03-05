@@ -79,7 +79,8 @@ export class SyncFailed extends Data.TaggedError("SyncFailed")<{
 		| MarkdownAnnotationsNotFound
 		| CyclicTagDependency
 		| DuplicateTagDefinition
-		| UnresolvedTagDependency;
+		| UnresolvedTagDependency
+		| ShellNotFound;
 }> {
 	get message() {
 		return String(this.reason);
@@ -123,3 +124,9 @@ export class InvalidFileQuery extends Data.TaggedError("InvalidFileQuery")<{
 	readonly end: number;
 	readonly reason?: SchemaIssue.Issue;
 }> {}
+
+/**
+ * @group Errors
+ */
+// biome-ignore lint/complexity/noBannedTypes: Никаких методанных не требуется
+export class ShellNotFound extends Data.TaggedError("ShellNotFound")<{}> {}

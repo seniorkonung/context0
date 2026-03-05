@@ -1,5 +1,5 @@
 import * as Array from "effect/Array";
-import { identity, pipe } from "effect/Function";
+import { constVoid, identity, pipe } from "effect/Function";
 import * as Graph from "effect/Graph";
 import * as Option from "effect/Option";
 import * as Order from "effect/Order";
@@ -114,7 +114,7 @@ export const build = (
 				configs,
 				tagMaps: pipe(
 					configs,
-					Array.filterMap(({ tags }) => tags),
+					Array.filterMap(({ tags }) => Result.fromOption(tags, constVoid)),
 					Array.map((tagMap) =>
 						pipe(
 							tagMap,
@@ -212,11 +212,12 @@ export const build = (
 			Array.map(({ graph, dir, configs }) => {
 				return {
 					_tag: "ConfigGroup",
+					rootDir: workspace.rootDir,
 					dir,
 					configs,
 					tagMap: pipe(
 						configs,
-						Array.filterMap(({ tags }) => tags),
+						Array.filterMap(({ tags }) => Result.fromOption(tags, constVoid)),
 						Array.reduce(
 							{} as Option.Option.Value<RootConfig["tags"]>,
 							(acc, tagMap) => Record.union(acc, tagMap, identity),

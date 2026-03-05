@@ -100,7 +100,7 @@ export const layer = Layer.effect(
 							}),
 						),
 					),
-					Effect.andThen(Array.flatten),
+					Effect.map(Array.flatten),
 					Effect.andThen(
 						Effect.forEach(
 							Effect.fnUntraced(function* (dir) {

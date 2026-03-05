@@ -74,9 +74,7 @@ export type Hash = Schema.Schema.Type<typeof Hash>;
 /**
  * @group Schemas
  */
-export const Tag = Schema.NonEmptyString.pipe(
-	Schema.brand("Tag"),
-).annotate({
+export const Tag = Schema.NonEmptyString.pipe(Schema.brand("Tag")).annotate({
 	identifier: "Tag",
 });
 /**
@@ -100,20 +98,6 @@ export type FileQuery = Schema.Schema.Type<typeof FileQuery>;
 /**
  * @group Schemas
  */
-export const Command = Schema.NonEmptyString.pipe(
-	Schema.brand("Command"),
-).annotate({
-	identifier: "Command",
-});
-
-/**
- * @group Models
- */
-export type Command = Schema.Schema.Type<typeof Command>;
-
-/**
- * @group Schemas
- */
 export const Scope = Schema.Union([
 	Schema.Literal("all"),
 	Schema.Array(Schema.Literals(["write", "read", "create", "delete"])),
@@ -125,34 +109,65 @@ export const Scope = Schema.Union([
 export type Scope = Schema.Schema.Type<typeof Scope>;
 
 /**
+ * @group Schemas
+ */
+export const Command = Schema.Union([
+	Schema.NonEmptyString,
+	Schema.Struct({
+		run: Schema.NonEmptyString,
+		with: Schema.optionalKey(Schema.Unknown),
+		workdir: Schema.optionalKey(Schema.String),
+		env: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
+		debug: Schema.optionalKey(
+			Schema.Literals(["all", "stdout", "stderr", "none"]),
+		),
+	}),
+]).annotate({
+	identifier: "Command",
+});
+
+/**
+ * @group Models
+ */
+export type Command = Schema.Schema.Type<typeof Command>;
+
+/**
  * @group Models
  */
 export type CheckStep =
-	| { not: CheckStep }
-	| { oneOf: ReadonlyArray<CheckStep> }
-	| { anyOf: ReadonlyArray<CheckStep> }
-	| { allOf: ReadonlyArray<CheckStep> }
-	| { noneOf: ReadonlyArray<CheckStep> }
-	| { if: CheckStep; then: CheckStep; else?: CheckStep }
-	| { glob: Pattern }
-	| { basenamePattern: Pattern }
-	| { tags: ReadonlyArray<Tag> }
-	| { cmd: Command | { run: Command; with?: unknown } };
+	| { readonly not: CheckStep }
+	| { readonly oneOf: ReadonlyArray<CheckStep> }
+	| { readonly anyOf: ReadonlyArray<CheckStep> }
+	| { readonly allOf: ReadonlyArray<CheckStep> }
+	| { readonly noneOf: ReadonlyArray<CheckStep> }
+	| {
+			readonly if: CheckStep;
+			readonly then: CheckStep;
+			readonly else?: CheckStep;
+	  }
+	| { readonly glob: Pattern }
+	| { readonly basenamePattern: Pattern }
+	| { readonly tags: ReadonlyArray<Tag> }
+	| {
+			readonly cmd: Command;
+	  };
 
 type CheckStepEncoded =
-	| { not: CheckStepEncoded }
-	| { oneOf: ReadonlyArray<CheckStepEncoded> }
-	| { anyOf: ReadonlyArray<CheckStepEncoded> }
-	| { allOf: ReadonlyArray<CheckStepEncoded> }
-	| { noneOf: ReadonlyArray<CheckStepEncoded> }
-	| { if: CheckStepEncoded; then: CheckStepEncoded; else?: CheckStepEncoded }
-	| { glob: Schema.Codec.Encoded<typeof Pattern> }
-	| { basenamePattern: Schema.Codec.Encoded<typeof Pattern> }
-	| { tags: ReadonlyArray<Schema.Codec.Encoded<typeof Tag>> }
+	| { readonly not: CheckStepEncoded }
+	| { readonly oneOf: ReadonlyArray<CheckStepEncoded> }
+	| { readonly anyOf: ReadonlyArray<CheckStepEncoded> }
+	| { readonly allOf: ReadonlyArray<CheckStepEncoded> }
+	| { readonly noneOf: ReadonlyArray<CheckStepEncoded> }
 	| {
-			cmd:
-				| Schema.Codec.Encoded<typeof Command>
-				| { run: Schema.Codec.Encoded<typeof Command>; with?: unknown };
+			readonly if: CheckStepEncoded;
+			readonly then: CheckStepEncoded;
+			readonly else?: CheckStepEncoded;
+	  }
+	| { readonly glob: Schema.Codec.Encoded<typeof Pattern> }
+	| { readonly basenamePattern: Schema.Codec.Encoded<typeof Pattern> }
+	| { readonly tags: ReadonlyArray<Schema.Codec.Encoded<typeof Tag>> }
+	| {
+			readonly cmd: Schema.Codec.Encoded<typeof Command>;
 	  };
 
 /**
@@ -209,15 +224,7 @@ export const CheckStep = Schema.Union([
 	}),
 	Schema.Struct({ glob: Pattern }),
 	Schema.Struct({ tags: Schema.Array(Tag) }),
-	Schema.Struct({
-		cmd: Schema.Union([
-			Command,
-			Schema.Struct({
-				run: Command,
-				with: Schema.optionalKey(Schema.Unknown),
-			}),
-		]),
-	}),
+	Schema.Struct({ cmd: Command }),
 ]).annotate({ identifier: "CheckStep" }) satisfies Schema.Codec<
 	CheckStep,
 	unknown
@@ -274,6 +281,7 @@ export class EntrypointConfig extends Schema.Class<EntrypointConfig>(
  */
 export interface ConfigGroup {
 	readonly _tag: "ConfigGroup";
+	readonly rootDir: AbsolutePath;
 	readonly dir: AbsolutePath;
 	readonly configs: ReadonlyArray<RootConfig | EntrypointConfig>;
 	readonly tagMap: Option.Option.Value<RootConfig["tags"]>;

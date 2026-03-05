@@ -46,7 +46,8 @@
 			},
 			"suspicious": {
 				"noShadowRestrictedNames": "off",
-				"noThenProperty": "off"
+				"noThenProperty": "off",
+				"useIterableCallbackReturn": "off"
 			},
 			"recommended": true,
 			"style": {

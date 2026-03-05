@@ -3,8 +3,10 @@ import type * as HashSet from "effect/HashSet";
 import type * as Option from "effect/Option";
 import * as ServiceMap from "effect/ServiceMap";
 
+import { type ShellNotFound } from "./Errors.js";
 import { type MarkdownAnnotations } from "./MarkdownAnnotations.js";
 import {
+	type AbsolutePath,
 	type CheckStep,
 	type ConfigGroup,
 	type Tag,
@@ -19,7 +21,10 @@ export namespace CheckRunner {
 	 * @group Params
 	 */
 	export interface RunCheckParams {
-		readonly file: WorkspacePath;
+		readonly file: {
+			readonly workspacePath: WorkspacePath;
+			readonly absolutePath: AbsolutePath;
+		};
 		readonly attachedTags: HashSet.HashSet<Tag>;
 		readonly steps: ReadonlyArray<CheckStep>;
 		readonly configGroup: ConfigGroup;
@@ -35,6 +40,6 @@ export class CheckRunner extends ServiceMap.Service<
 	{
 		readonly runCheck: (
 			params: CheckRunner.RunCheckParams,
-		) => Effect.Effect<boolean>;
+		) => Effect.Effect<boolean, ShellNotFound>;
 	}
 >()("CheckRunner") {}
