@@ -4,10 +4,12 @@ import * as FileSystem from "effect/FileSystem";
 import { pipe } from "effect/Function";
 import * as HashSet from "effect/HashSet";
 import * as Layer from "effect/Layer";
+import * as Match from "effect/Match";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Record from "effect/Record";
 import * as Ref from "effect/Ref";
+import * as Result from "effect/Result";
 import * as Stream from "effect/Stream";
 import { glob } from "fast-glob";
 import picomatch from "picomatch";
@@ -17,12 +19,13 @@ import * as CheckRunnerProvider from "./CheckRunnerProvider.js";
 import * as ConfigResolver from "./ConfigResolver.js";
 import { CONTEXT0_FOLDER_NAME, CONTEXT0_LOCK_FILE_NAME } from "./Constants.js";
 import { Context0 } from "./Context0.js";
-import { SyncFailed } from "./Errors.js";
+import { SearchFailed, SyncFailed } from "./Errors.js";
+import * as FileFilter from "./FileFilter.js";
 import * as Lockfile from "./Lockfile.js";
 import * as MarkdownAnnotations from "./MarkdownAnnotations.js";
 import {
 	AbsolutePath,
-	type Pattern,
+	FileQuery,
 	RelativePath,
 	type Tag,
 	WorkspacePath,
@@ -41,7 +44,9 @@ export const layer = Layer.effect(
 		const fs = yield* FileSystem.FileSystem;
 		const path = yield* Path.Path;
 
-		const isContext = picomatch(`**/${CONTEXT0_FOLDER_NAME}/**/*.md`);
+		const isContext = picomatch(`**/${CONTEXT0_FOLDER_NAME}/**/*.md`, {
+			dot: true,
+		});
 
 		return {
 			sync: Effect.fn("sync")(
@@ -76,7 +81,7 @@ export const layer = Layer.effect(
 									absolutePath,
 								).pipe(Option.getOrThrow);
 
-								const annotations = yield* fs.readFileString(file).pipe(
+								const annotations = yield* fs.readFileString(absolutePath).pipe(
 									Effect.catchTags({ PlatformError: Effect.die }),
 									Effect.andThen((markdown) =>
 										MarkdownAnnotations.fromMarkdown(
@@ -115,7 +120,7 @@ export const layer = Layer.effect(
 								};
 							}),
 							{
-								concurrency: 2,
+								concurrency: 100,
 								unordered: true,
 							},
 						),
@@ -132,10 +137,6 @@ export const layer = Layer.effect(
 									annotations,
 									tags: Array.fromIterable(tags),
 									hash: Option.flatMap(oldLockfile, ({ hash }) => hash),
-									requiredTags: Option.map(
-										oldLockfile,
-										({ requiredTags }) => requiredTags,
-									).pipe(Option.getOrElse(() => [])),
 								} satisfies Lockfile.Lockfile[RelativePath],
 							] as const;
 						}),
@@ -144,7 +145,7 @@ export const layer = Layer.effect(
 
 					yield* fs
 						.writeFileString(
-							CONTEXT0_LOCK_FILE_NAME,
+							path.resolve(workspace.rootDir, CONTEXT0_LOCK_FILE_NAME),
 							Lockfile.toString(lockfile),
 						)
 						.pipe(Effect.catchTags({ PlatformError: Effect.die }));
@@ -152,24 +153,68 @@ export const layer = Layer.effect(
 				Effect.catch((reason) => new SyncFailed({ reason }).asEffect()),
 			),
 
-			updateRequiredTags: Effect.fn("updateRequiredTags")(function* () {
+			search: Effect.fn("search")(
+				function* (query, scope) {
+					const workspace = yield* discover().pipe(Effect.orDie);
+					const fileFilter = yield* FileFilter.parse(
+						FileQuery.makeUnsafe(query),
+					).asEffect();
+
+					const withTrailingSlash = (s: string) => {
+						return s.length === 0 ? s : s.endsWith("/") ? s : `${s}/`;
+					};
+					const relativeCwd =
+						path.resolve(".") === workspace.rootDir
+							? ""
+							: path
+									.resolve(".")
+									.slice(withTrailingSlash(workspace.rootDir).length);
+
+					const files = yield* Stream.fromIterable(
+						Record.toEntries(workspace.lockfile),
+					).pipe(
+						Stream.filterMap(([file, lockinfo]) => {
+							return Match.value({
+								scope: scope as Context0.SearchScope,
+							}).pipe(
+								Match.discriminators("scope")({
+									workspace: () => {
+										return Result.succeed({
+											file: WorkspacePath.makeUnsafe(`//${file}`),
+											lockinfo,
+										});
+									},
+									cwd: () => {
+										if (!file.startsWith(withTrailingSlash(relativeCwd)))
+											return Result.failVoid;
+										return Result.succeed({
+											file: RelativePath.makeUnsafe(
+												file.replace(withTrailingSlash(relativeCwd), ""),
+											),
+											lockinfo,
+										});
+									},
+								}),
+								Match.exhaustive,
+							);
+						}),
+						Stream.filter(({ file, lockinfo }) =>
+							FileFilter.matches(fileFilter, file, lockinfo),
+						),
+						Stream.map(({ file }) => file),
+						Stream.runCollect,
+					);
+
+					return files as Context0.SearchReturnType<typeof scope>;
+				},
+				Effect.catch((reason) => new SearchFailed({ reason }).asEffect()),
+			),
+
+			describe: Effect.fn("describe")(function* () {
 				return 1 as any;
 			}),
-			check: Effect.fn("check")(function* () {
-				return 1 as any;
-			}),
-			getContext: Effect.fn("getContext")(function* () {
-				return 1 as any;
-			}),
-			getFiles: Effect.fn("getFiles")(function* () {
-				return 1 as any;
-			}),
-			getRequiredTags: Effect.fn("getRequiredTags")(function* () {
-				return 1 as any;
-			}),
-			getTags: Effect.fn("getTags")(function* (
-				...patterns: ReadonlyArray<Pattern>
-			) {
+
+			validate: Effect.fn("validate")(function* () {
 				return 1 as any;
 			}),
 		};

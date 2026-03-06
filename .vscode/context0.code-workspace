@@ -21,6 +21,10 @@
 			"path": "../packages/core"
 		},
 		{
+			"name": "📦 cli",
+			"path": "../packages/cli"
+		},
+		{
 			"name": "📦 typescript-config",
 			"path": "../packages/typescript-config"
 		}

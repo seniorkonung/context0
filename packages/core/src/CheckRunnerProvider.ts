@@ -11,8 +11,8 @@ import * as Record from "effect/Record";
 import * as Schema from "effect/Schema";
 import * as SchemaParser from "effect/SchemaParser";
 import * as Sink from "effect/Sink";
+import * as Stdio from "effect/Stdio";
 import * as Stream from "effect/Stream";
-import * as Terminal from "effect/Terminal";
 import * as ChildProcess from "effect/unstable/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 import picomatch from "picomatch";
@@ -34,11 +34,7 @@ const layer = Layer.effect(
 	Effect.gen(function* () {
 		const path = yield* Path.Path;
 		const processSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-		const terminal = yield* Terminal.Terminal;
-
-		const stdout = Sink.forEach((buffer: Uint8Array) => {
-			return terminal.display(new TextDecoder().decode(buffer));
-		});
+		const stdio = yield* Stdio.Stdio;
 
 		const glob = (pattern: string, file: WorkspacePath): boolean => {
 			const isMatch = picomatch(pattern, { dot: true });
@@ -125,17 +121,17 @@ const layer = Layer.effect(
 				);
 
 				yield* handle.all.pipe(
-					Stream.run(stdout),
+					Stream.run(stdio.stdout({ endOnDone: false })),
 					Effect.when(Effect.succeed(debug === "all")),
 				);
 
 				yield* handle.stdout.pipe(
-					Stream.run(stdout),
+					Stream.run(stdio.stdout({ endOnDone: false })),
 					Effect.when(Effect.succeed(debug === "stdout")),
 				);
 
 				yield* handle.stderr.pipe(
-					Stream.run(stdout),
+					Stream.run(stdio.stdout({ endOnDone: false })),
 					Effect.when(Effect.succeed(debug === "stderr")),
 				);
 

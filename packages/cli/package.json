@@ -1,0 +1,21 @@
+{
+	"name": "@context0/cli",
+	"type": "module",
+	"version": "0.0.0",
+	"private": true,
+	"bin": {
+		"context0": "./dist/cli.js"
+	},
+	"files": [
+		"dist"
+	],
+	"dependencies": {
+		"effect": "catalog:effect",
+		"@effect/platform-node": "catalog:effect",
+		"@context0/core": "workspace:*"
+	},
+	"devDependencies": {
+		"@context0/typescript-config": "workspace:*",
+		"typescript": "catalog:typescript"
+	}
+}

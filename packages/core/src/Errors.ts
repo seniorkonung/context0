@@ -69,27 +69,6 @@ export class MarkdownAnnotationsNotFound extends Data.TaggedError(
 /**
  * @group Errors
  */
-export class SyncFailed extends Data.TaggedError("SyncFailed")<{
-	readonly reason:
-		| RootDirNotFound
-		| InvalidLockfile
-		| InvalidRootConfig
-		| InvalidEntrypointConfig
-		| InvalidMarkdownAnnotations
-		| MarkdownAnnotationsNotFound
-		| CyclicTagDependency
-		| DuplicateTagDefinition
-		| UnresolvedTagDependency
-		| ShellNotFound;
-}> {
-	get message() {
-		return String(this.reason);
-	}
-}
-
-/**
- * @group Errors
- */
 export class CyclicTagDependency extends Data.TaggedError(
 	"CyclicTagDependency",
 )<{
@@ -130,3 +109,33 @@ export class InvalidFileQuery extends Data.TaggedError("InvalidFileQuery")<{
  */
 // biome-ignore lint/complexity/noBannedTypes: Никаких методанных не требуется
 export class ShellNotFound extends Data.TaggedError("ShellNotFound")<{}> {}
+
+/**
+ * @group Errors
+ */
+export class SyncFailed extends Data.TaggedError("SyncFailed")<{
+	readonly reason:
+		| RootDirNotFound
+		| InvalidLockfile
+		| InvalidRootConfig
+		| InvalidEntrypointConfig
+		| InvalidMarkdownAnnotations
+		| MarkdownAnnotationsNotFound
+		| CyclicTagDependency
+		| DuplicateTagDefinition
+		| UnresolvedTagDependency
+		| ShellNotFound;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class SearchFailed extends Data.TaggedError("SearchFailed")<{
+	readonly reason:
+		| RootDirNotFound
+		| InvalidLockfile
+		| InvalidRootConfig
+		| InvalidEntrypointConfig
+		| InvalidMarkdownAnnotations
+		| InvalidFileQuery;
+}> {}

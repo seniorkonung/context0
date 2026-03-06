@@ -13,7 +13,6 @@ export class Lockfile extends Schema.Opaque<Lockfile>()(
 	Schema.Record(
 		RelativePath,
 		Schema.Struct({
-			requiredTags: Schema.Array(Tag),
 			hash: Hash.pipe(Schema.OptionFromOptionalKey),
 			tags: Schema.Array(Tag),
 			annotations: MarkdownAnnotations.pipe(Schema.OptionFromOptionalKey),

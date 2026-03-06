@@ -221,7 +221,7 @@ export const parse = (
 
 				if (isRParen(tokenKind)) {
 					const lparenIdx = findLParen(state.operatorsStack);
-					if (!lparenIdx) {
+					if (lparenIdx === undefined) {
 						return fail(token);
 					}
 

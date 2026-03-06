@@ -1,0 +1,16 @@
+[env]
+_.path = './node_modules/.bin'
+
+[tasks]
+check = ['tsc -b tsconfig.json', 'biome check']
+
+[tasks.build]
+depends = "//packages/core:build"
+run = 'tsc -b tsconfig.json'
+
+[tasks.dist]
+depends = ':build'
+run = [
+  "bun build ./src/bin/cli.ts --outdir ./dist --target node",
+  "chmod +x ./dist/cli.js",
+]

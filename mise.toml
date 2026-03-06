@@ -2,7 +2,7 @@ experimental_monorepo_root = true
 monorepo.config_roots = ["packages/*"]
 
 [env]
-_.path = './node_modules/.bin'
+_.path = ['./node_modules/.bin', './scratchpad/node_modules/.bin']
 
 [tools]
 biome = "2"
@@ -15,7 +15,9 @@ node = "25.2"
 prepare = [
   "lefthook install",
   "bun install --frozen-lockfile",
-  # "mise run //...:build",
+  "mise run //...:build",
+  "mise run //...:dist",
+  "bun install",
 ]
 scratchpad = ["mise run //packages/...:build", "bun run ./scratchpad/index.ts"]
 

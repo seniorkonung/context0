@@ -6,7 +6,7 @@
 	"exports": {
 		"./*": {
 			"types": "./src/*.ts",
-			"import": "./build/src/*.js"
+			"import": "./build/*.js"
 		}
 	},
 	"dependencies": {
