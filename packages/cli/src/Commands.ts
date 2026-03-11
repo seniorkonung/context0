@@ -1,13 +1,24 @@
 import * as Context0 from "@context0/core/Context0";
 import * as Models from "@context0/core/Models";
 import * as Workspace from "@context0/core/Workspace";
+import chalk from "chalk";
+import * as Array from "effect/Array";
 import * as Effect from "effect/Effect";
+import { pipe } from "effect/Function";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as String from "effect/String";
 import * as Terminal from "effect/Terminal";
 import * as Argument from "effect/unstable/cli/Argument";
 import * as Command from "effect/unstable/cli/Command";
 import * as Flag from "effect/unstable/cli/Flag";
+
+import * as CliUi from "./CliUi.js";
+
+/**
+ * @group Flags
+ */
+export const JsonFlag = Flag.boolean("json");
 
 /**
  * @group Commands
@@ -46,7 +57,7 @@ export const SearchCommand = Command.make(
 	"search",
 	{
 		query: Argument.string("query"),
-		json: Flag.boolean("json"),
+		json: JsonFlag,
 		cwd: Flag.boolean("cwd").pipe(Flag.withAlias("c")),
 	},
 	Effect.fnUntraced(function* ({ query, json, cwd }) {
@@ -71,6 +82,76 @@ export const SearchCommand = Command.make(
 /**
  * @group Commands
  */
+export const DescribeCommand = Command.make(
+	"describe",
+	{
+		file: Argument.file("file", { mustExist: true }),
+		json: JsonFlag,
+	},
+	Effect.fnUntraced(function* ({ json, file }) {
+		const terminal = yield* Terminal.Terminal;
+		const context0 = yield* Context0.Context0;
+		const result = yield* context0.describe(
+			Models.AbsolutePath.makeUnsafe(file),
+		);
+
+		if (json) {
+			yield* terminal.display(JSON.stringify(result, null, " "));
+			yield* terminal.display("\n");
+			return;
+		}
+
+		const prettyTitle = (str: string): string => chalk.bold.white(str);
+		const prettyDescription = (str: string): string => chalk.white(str);
+		const prettyElement = (str: string): string => chalk.green(str);
+
+		const tagsOutput = pipe(
+			"",
+			String.concat(prettyTitle("TAGS\n")),
+			String.concat(
+				pipe(
+					result.tags,
+					Array.map(
+						({ name, description }) =>
+							`  ${prettyElement(name)}\t      ${prettyDescription(description)}`,
+					),
+					Array.join("\n"),
+				),
+			),
+			CliUi.div,
+		);
+
+		const contextOutput = pipe(
+			"",
+			String.concat(prettyTitle("CONTEXT\n")),
+			String.concat(
+				pipe(
+					result.context,
+					Array.map(
+						({ path, description }) =>
+							`  ${prettyElement(path)}\t      ${prettyDescription(description)}`,
+					),
+					Array.join("\n"),
+				),
+			),
+			CliUi.div,
+		);
+
+		yield* terminal.display(tagsOutput);
+		yield* terminal.display("\n\n");
+		yield* terminal.display(contextOutput);
+		yield* terminal.display("\n");
+	}),
+);
+
+/**
+ * @group Commands
+ */
 export const Context0Command = Command.make("context0").pipe(
-	Command.withSubcommands([InitCommand, SyncCommand, SearchCommand]),
+	Command.withSubcommands([
+		InitCommand,
+		SyncCommand,
+		SearchCommand,
+		DescribeCommand,
+	]),
 );

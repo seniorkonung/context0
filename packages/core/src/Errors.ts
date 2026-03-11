@@ -18,6 +18,13 @@ export class RootDirNotFound extends Data.TaggedError("RootDirNotFound")<{
 /**
  * @group Errors
  */
+export class FileNotFound extends Data.TaggedError("FileNotFound")<{
+	readonly file: AbsolutePath;
+}> {}
+
+/**
+ * @group Errors
+ */
 export class RootDirAlreadyDefined extends Data.TaggedError(
 	"RootDirAlreadyDefined",
 )<{
@@ -109,33 +116,3 @@ export class InvalidFileQuery extends Data.TaggedError("InvalidFileQuery")<{
  */
 // biome-ignore lint/complexity/noBannedTypes: Никаких методанных не требуется
 export class ShellNotFound extends Data.TaggedError("ShellNotFound")<{}> {}
-
-/**
- * @group Errors
- */
-export class SyncFailed extends Data.TaggedError("SyncFailed")<{
-	readonly reason:
-		| RootDirNotFound
-		| InvalidLockfile
-		| InvalidRootConfig
-		| InvalidEntrypointConfig
-		| InvalidMarkdownAnnotations
-		| MarkdownAnnotationsNotFound
-		| CyclicTagDependency
-		| DuplicateTagDefinition
-		| UnresolvedTagDependency
-		| ShellNotFound;
-}> {}
-
-/**
- * @group Errors
- */
-export class SearchFailed extends Data.TaggedError("SearchFailed")<{
-	readonly reason:
-		| RootDirNotFound
-		| InvalidLockfile
-		| InvalidRootConfig
-		| InvalidEntrypointConfig
-		| InvalidMarkdownAnnotations
-		| InvalidFileQuery;
-}> {}
