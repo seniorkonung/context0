@@ -102,7 +102,8 @@ export const DescribeCommand = Command.make(
 		}
 
 		const prettyTitle = (str: string): string => chalk.bold.white(str);
-		const prettyDescription = (str: string): string => chalk.white(str);
+		const prettyDescription = (str: string): string =>
+			chalk.white(str).replaceAll("\n", "\n\t      ");
 		const prettyElement = (str: string): string => chalk.green(str);
 
 		const tagsOutput = pipe(
