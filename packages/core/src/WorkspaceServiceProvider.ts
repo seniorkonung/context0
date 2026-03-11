@@ -37,11 +37,7 @@ export const layer = Layer.effect(
 		const path = yield* Path.Path;
 
 		const discover = Effect.fn("discover")(
-			function* (_startDir) {
-				const startDir = AbsolutePath.makeUnsafe(
-					path.resolve(_startDir ?? "."),
-				);
-
+			function* (startDir) {
 				const findRootDir = (
 					dir: string,
 				): Effect.Effect<Option.Option<string>> =>

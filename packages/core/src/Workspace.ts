@@ -40,7 +40,7 @@ export class WorkspaceService extends ServiceMap.Service<
 		 * @default startDir process.cwd()
 		 */
 		readonly discover: (
-			startDir?: string,
+			startDir?: AbsolutePath,
 		) => Effect.Effect<
 			Workspace,
 			| RootDirNotFound
@@ -52,7 +52,7 @@ export class WorkspaceService extends ServiceMap.Service<
 		 * @default dir process.cwd()
 		 */
 		readonly init: (
-			dir?: string,
+			dir?: AbsolutePath,
 		) => Effect.Effect<Workspace, RootDirAlreadyDefined>;
 	}
 >()("WorkspaceService") {}

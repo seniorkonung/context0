@@ -3,6 +3,7 @@ import * as Models from "@context0/core/Models";
 import * as Workspace from "@context0/core/Workspace";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
+import * as Path from "effect/Path";
 import * as Terminal from "effect/Terminal";
 import * as Argument from "effect/unstable/cli/Argument";
 import * as Command from "effect/unstable/cli/Command";
@@ -17,8 +18,12 @@ export const InitCommand = Command.make(
 		dir: Flag.string("dir").pipe(Flag.withAlias("d"), Flag.optional),
 	},
 	Effect.fnUntraced(function* ({ dir }) {
+		const path = yield* Path.Path;
 		const workspaceService = yield* Workspace.WorkspaceService;
-		yield* workspaceService.init(Option.getOrUndefined(dir));
+		const startDir = Models.AbsolutePath.makeUnsafe(
+			path.resolve(Option.getOrElse(dir, () => ".")),
+		);
+		yield* workspaceService.init(startDir);
 	}),
 );
 
