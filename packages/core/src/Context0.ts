@@ -15,17 +15,32 @@ import {
  */
 export namespace Context0 {
 	/**
-	 * @group Types
+	 * @group Options
 	 */
-	export type SearchScope = "workspace" | "cwd";
+	export interface SearchOptions {
+		readonly dir?: AbsolutePath | undefined;
+	}
+
+	/**
+	 * @group Options
+	 */
+	export interface SyncOptions {
+		readonly dir?: AbsolutePath | undefined;
+		readonly tags?: ReadonlyArray<Tag> | undefined;
+	}
 
 	/**
 	 * @group Types
 	 */
-	export type SearchReturnType<TScope extends SearchScope> =
-		TScope extends "workspace"
+	export type SearchReturnType<TOptions> = TOptions extends {
+		dir: infer D;
+	}
+		? [D] extends [AbsolutePath]
+			? ReadonlyArray<RelativePath>
+			: [D] extends [undefined]
 			? ReadonlyArray<WorkspacePath>
-			: ReadonlyArray<RelativePath>;
+				: ReadonlyArray<WorkspacePath | RelativePath>
+		: ReadonlyArray<WorkspacePath>;
 
 	/**
 	 * @group Types
@@ -59,10 +74,10 @@ export namespace Context0 {
 export class Context0 extends ServiceMap.Service<
 	Context0,
 	{
-		readonly search: <TScope extends Context0.SearchScope>(
+		readonly search: <TOptions extends Context0.SearchOptions>(
 			query: FileQuery,
-			scope: TScope,
-		) => Effect.Effect<Context0.SearchReturnType<TScope>>;
+			options?: TOptions,
+		) => Effect.Effect<Context0.SearchReturnType<TOptions>>;
 		readonly describe: (
 			file: AbsolutePath,
 		) => Effect.Effect<Context0.DescribeReturnType>;

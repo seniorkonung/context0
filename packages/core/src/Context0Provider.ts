@@ -4,7 +4,6 @@ import * as FileSystem from "effect/FileSystem";
 import { pipe } from "effect/Function";
 import * as HashSet from "effect/HashSet";
 import * as Layer from "effect/Layer";
-import * as Match from "effect/Match";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Record from "effect/Record";
@@ -30,6 +29,7 @@ import {
 	type Tag,
 	WorkspacePath,
 } from "./Models.js";
+import { OperationProgress } from "./References.js";
 import { WorkspaceService } from "./Workspace.js";
 import * as WorkspaceServiceProvider from "./WorkspaceServiceProvider.js";
 
@@ -49,7 +49,8 @@ export const layer = Layer.effect(
 		});
 
 		return {
-			sync: Effect.fn("sync")(function* () {
+			sync: Effect.fn("sync")(function* (options = {}) {
+				const operationProgress = yield* OperationProgress;
 				const workspace = yield* discover().pipe(Effect.orDie);
 				const configResolver = yield* ConfigResolver.build(workspace)
 					.asEffect()
@@ -58,7 +59,9 @@ export const layer = Layer.effect(
 				const files = yield* Effect.promise(() =>
 					glob("**", {
 						onlyFiles: true,
-						cwd: workspace.rootDir,
+						cwd: Option.fromNullishOr(options.dir).pipe(
+							Option.getOrElse(() => workspace.rootDir),
+						),
 						dot: true,
 						ignore: [
 							...Option.flatMap(
@@ -68,6 +71,8 @@ export const layer = Layer.effect(
 						],
 					}),
 				);
+
+				yield* Ref.set(operationProgress.total, files.length);
 
 				const initialLockfile = yield* Stream.fromArray(files).pipe(
 					Stream.mapEffect(
@@ -94,9 +99,16 @@ export const layer = Layer.effect(
 								Effect.when(Effect.succeed(isContext(file))),
 							);
 
+							const targetTags = options.tags ?? [];
+							const tagOrder = Array.isReadonlyArrayNonEmpty(targetTags)
+								? Array.filter(configGroup.tagOrder, (tag) =>
+										targetTags.includes(tag),
+									)
+								: configGroup.tagOrder;
+
 							const attachedTagsRef = yield* Ref.make(HashSet.empty<Tag>());
 							yield* Effect.forEach(
-								configGroup.tagOrder,
+								tagOrder,
 								Effect.fnUntraced(function* (tag) {
 									const isPassed = yield* runCheck({
 										file: {
@@ -121,9 +133,12 @@ export const layer = Layer.effect(
 							};
 						}),
 						{
-							concurrency: 100,
+							concurrency: "unbounded",
 							unordered: true,
 						},
+					),
+					Stream.tap(() =>
+						Ref.update(operationProgress.current, (current) => current + 1),
 					),
 					Stream.runCollect,
 					Effect.orDie,
@@ -153,7 +168,7 @@ export const layer = Layer.effect(
 					.pipe(Effect.catchTags({ PlatformError: Effect.die }));
 			}),
 
-			search: Effect.fn("search")(function* (query, scope) {
+			search: Effect.fn("search")(function* (query, options) {
 				const workspace = yield* discover().pipe(Effect.orDie);
 				const fileFilter = yield* FileFilter.parse(FileQuery.makeUnsafe(query))
 					.asEffect()
@@ -162,40 +177,37 @@ export const layer = Layer.effect(
 				const withTrailingSlash = (s: string) => {
 					return s.length === 0 ? s : s.endsWith("/") ? s : `${s}/`;
 				};
-				const relativeCwd =
-					path.resolve(".") === workspace.rootDir
+
+				const dir = options?.dir;
+				const relativeDir = dir
+					? dir === workspace.rootDir
 						? ""
-						: path
-								.resolve(".")
-								.slice(withTrailingSlash(workspace.rootDir).length);
+						: dir.slice(withTrailingSlash(workspace.rootDir).length)
+					: undefined;
 
 				const files = yield* Stream.fromIterable(
 					Record.toEntries(workspace.lockfile),
 				).pipe(
 					Stream.filterMap(([file, lockinfo]) => {
-						return Match.value({
-							scope: scope as Context0.SearchScope,
-						}).pipe(
-							Match.discriminators("scope")({
-								workspace: () => {
-									return Result.succeed({
-										file: WorkspacePath.makeUnsafe(`//${file}`),
-										lockinfo,
-									});
-								},
-								cwd: () => {
-									if (!file.startsWith(withTrailingSlash(relativeCwd)))
-										return Result.failVoid;
-									return Result.succeed({
-										file: RelativePath.makeUnsafe(
-											file.replace(withTrailingSlash(relativeCwd), ""),
-										),
-										lockinfo,
-									});
-								},
-							}),
-							Match.exhaustive,
-						);
+						if (relativeDir === undefined) {
+							return Result.succeed({
+								file: WorkspacePath.makeUnsafe(`//${file}`) as
+									| WorkspacePath
+									| RelativePath,
+								lockinfo,
+							});
+						}
+
+						if (!file.startsWith(withTrailingSlash(relativeDir))) {
+							return Result.failVoid;
+						}
+
+						return Result.succeed({
+							file: RelativePath.makeUnsafe(
+								file.replace(withTrailingSlash(relativeDir), ""),
+							),
+							lockinfo,
+						});
 					}),
 					Stream.filter(({ file, lockinfo }) =>
 						FileFilter.matches(fileFilter, file, lockinfo),
@@ -204,7 +216,7 @@ export const layer = Layer.effect(
 					Stream.runCollect,
 				);
 
-				return files as Context0.SearchReturnType<typeof scope>;
+				return files as ReadonlyArray<WorkspacePath | AbsolutePath> as any;
 			}),
 
 			describe: Effect.fn("describe")(function* (file) {

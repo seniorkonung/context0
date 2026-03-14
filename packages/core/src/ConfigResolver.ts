@@ -1,5 +1,6 @@
 import * as Array from "effect/Array";
-import { constVoid, identity, pipe } from "effect/Function";
+import * as Filter from "effect/Filter";
+import { identity, pipe } from "effect/Function";
 import * as Graph from "effect/Graph";
 import * as Option from "effect/Option";
 import * as Order from "effect/Order";
@@ -114,7 +115,7 @@ export const build = (
 				configs,
 				tagMaps: pipe(
 					configs,
-					Array.filterMap(({ tags }) => Result.fromOption(tags, constVoid)),
+					Array.filterMap(Filter.fromPredicateOption(({ tags }) => tags)),
 					Array.map((tagMap) =>
 						pipe(
 							tagMap,
@@ -217,7 +218,7 @@ export const build = (
 					configs,
 					tagMap: pipe(
 						configs,
-						Array.filterMap(({ tags }) => Result.fromOption(tags, constVoid)),
+						Array.filterMap(Filter.fromPredicateOption(({ tags }) => tags)),
 						Array.reduce(
 							{} as Option.Option.Value<RootConfig["tags"]>,
 							(acc, tagMap) => Record.union(acc, tagMap, identity),

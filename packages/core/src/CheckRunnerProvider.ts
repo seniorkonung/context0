@@ -11,7 +11,6 @@ import * as Record from "effect/Record";
 import * as Schema from "effect/Schema";
 import * as SchemaParser from "effect/SchemaParser";
 import * as Sink from "effect/Sink";
-import * as Stdio from "effect/Stdio";
 import * as Stream from "effect/Stream";
 import * as ChildProcess from "effect/unstable/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
@@ -29,12 +28,11 @@ import {
 /**
  * @group Layers
  */
-const layer = Layer.effect(
+export const layer = Layer.effect(
 	CheckRunner,
 	Effect.gen(function* () {
 		const path = yield* Path.Path;
 		const processSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-		const stdio = yield* Stdio.Stdio;
 
 		const glob = (pattern: string, file: WorkspacePath): boolean => {
 			const isMatch = picomatch(pattern, { dot: true });
@@ -82,9 +80,14 @@ const layer = Layer.effect(
 							debug: "none" as const,
 						};
 
-				const handle = yield* ChildProcess.make({
+				const handle = yield* ChildProcess.make("sh", {
 					extendEnv: true,
 					detached: false,
+					stdin: Stream.fromEffect(
+						Effect.succeed(new TextEncoder().encode(run)),
+					),
+					stderr: debug === "all" || debug === "stderr" ? "inherit" : "ignore",
+					stdout: debug === "all" || debug === "stdout" ? "inherit" : "ignore",
 					env: Record.union(
 						env,
 						{
@@ -98,7 +101,7 @@ const layer = Layer.effect(
 						(_, b) => b,
 					),
 					cwd: workdir,
-				})`sh`.pipe(
+				}).pipe(
 					processSpawner.spawn,
 					Effect.catch(
 						(
@@ -113,26 +116,6 @@ const layer = Layer.effect(
 							return Effect.fail(error);
 						},
 					),
-				);
-
-				yield* Stream.fromEffect(Effect.succeed(run)).pipe(
-					Stream.map((cmd) => new TextEncoder().encode(cmd)),
-					Stream.run(handle.stdin),
-				);
-
-				yield* handle.all.pipe(
-					Stream.run(stdio.stdout({ endOnDone: false })),
-					Effect.when(Effect.succeed(debug === "all")),
-				);
-
-				yield* handle.stdout.pipe(
-					Stream.run(stdio.stdout({ endOnDone: false })),
-					Effect.when(Effect.succeed(debug === "stdout")),
-				);
-
-				yield* handle.stderr.pipe(
-					Stream.run(stdio.stdout({ endOnDone: false })),
-					Effect.when(Effect.succeed(debug === "stderr")),
 				);
 
 				const exitCode = yield* handle.exitCode;
