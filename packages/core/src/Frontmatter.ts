@@ -1,23 +1,25 @@
 import * as Option from "effect/Option";
 import { load as parseYaml } from "js-yaml";
 
-const PLATFORM = typeof process !== "undefined" ? process.platform : "";
-const PATTERN =
+// #region internal
+const _PLATFORM = typeof process !== "undefined" ? process.platform : "";
+const _PATTERN =
 	"^(" +
 	"\\ufeff?" +
 	"(= yaml =|---)" +
 	"$([\\s\\S]*?)" +
 	"^(?:\\2|\\.\\.\\.)\\s*" +
 	"$" +
-	(PLATFORM === "win32" ? "\\r?" : "") +
+	(_PLATFORM === "win32" ? "\\r?" : "") +
 	"(?:\\n)?)";
-const REGEX = new RegExp(PATTERN, "m");
+const _REGEX = new RegExp(_PATTERN, "m");
+// #endregion internal
 
 /**
- * @group Methods
+ * @group Constructor
  */
 export const load = (content: string): Option.Option<unknown> => {
-	const match = REGEX.exec(content);
+	const match = _REGEX.exec(content);
 	if (!match) return Option.none();
 	const yaml = match[match.length - 1].replace(/^\s+|\s+$/g, "");
 	return Option.some(parseYaml(yaml));
@@ -27,5 +29,12 @@ export const load = (content: string): Option.Option<unknown> => {
  * @group Predicates
  */
 export const test = (content: string): boolean => {
-	return REGEX.test(content);
+	return _REGEX.test(content);
+};
+
+/**
+ * @group Constructor
+ */
+export const markdown = (content: string): string => {
+	return content.replace(_REGEX, "");
 };
