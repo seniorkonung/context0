@@ -22,3 +22,10 @@ export const startsWithUnescaped = (str: string, char: string): boolean => {
 
 	return false;
 };
+
+/**
+ * @group Functions
+ */
+export const withTrailingSlash = (s: string) => {
+	return s.length === 0 ? s : s.endsWith("/") ? s : `${s}/`;
+};
