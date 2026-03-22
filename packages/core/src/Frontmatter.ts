@@ -1,7 +1,6 @@
 import * as Option from "effect/Option";
 import { load as parseYaml } from "js-yaml";
 
-// #region internal
 const _PLATFORM = typeof process !== "undefined" ? process.platform : "";
 const _PATTERN =
 	"^(" +
@@ -13,7 +12,6 @@ const _PATTERN =
 	(_PLATFORM === "win32" ? "\\r?" : "") +
 	"(?:\\n)?)";
 const _REGEX = new RegExp(_PATTERN, "m");
-// #endregion internal
 
 /**
  * @group Constructor
