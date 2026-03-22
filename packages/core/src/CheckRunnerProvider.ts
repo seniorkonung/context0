@@ -16,7 +16,7 @@ import * as ChildProcess from "effect/unstable/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/unstable/process/ChildProcessSpawner";
 import picomatch from "picomatch";
 
-import { CheckRunner } from "./CheckRunner.js";
+import * as CheckRunner from "./CheckRunner.js";
 import { ShellNotFound } from "./Errors.js";
 import {
 	type AbsolutePath,
@@ -29,7 +29,7 @@ import {
  * @group Layers
  */
 export const layer = Layer.effect(
-	CheckRunner,
+	CheckRunner.CheckRunner,
 	Effect.gen(function* () {
 		const path = yield* Path.Path;
 		const processSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -110,7 +110,7 @@ export const layer = Layer.effect(
 							never,
 							PlatformError.PlatformError | ShellNotFound
 						> => {
-							if ("kind" in error.reason && error.reason.kind === "NotFound") {
+							if ("_tag" in error.reason && error.reason._tag === "NotFound") {
 								return new ShellNotFound().asEffect();
 							}
 							return Effect.fail(error);

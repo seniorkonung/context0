@@ -14,22 +14,17 @@ import {
 } from "./Models.js";
 
 /**
- * @group Namespaces
+ * @group Params
  */
-export namespace CheckRunner {
-	/**
-	 * @group Params
-	 */
-	export interface RunCheckParams {
-		readonly file: {
-			readonly workspacePath: WorkspacePath;
-			readonly absolutePath: AbsolutePath;
-		};
-		readonly attachedTags: HashSet.HashSet<Tag>;
-		readonly steps: ReadonlyArray<CheckStep>;
-		readonly configGroup: ConfigGroup;
-		readonly annotations: Option.Option<MarkdownAnnotations>;
-	}
+export interface RunCheckParams {
+	readonly file: {
+		readonly workspacePath: WorkspacePath;
+		readonly absolutePath: AbsolutePath;
+	};
+	readonly attachedTags: HashSet.HashSet<Tag>;
+	readonly steps: ReadonlyArray<CheckStep>;
+	readonly configGroup: ConfigGroup;
+	readonly annotations: Option.Option<MarkdownAnnotations>;
 }
 
 /**
@@ -39,7 +34,7 @@ export class CheckRunner extends ServiceMap.Service<
 	CheckRunner,
 	{
 		readonly runCheck: (
-			params: CheckRunner.RunCheckParams,
+			params: RunCheckParams,
 		) => Effect.Effect<boolean, ShellNotFound>;
 	}
 >()("CheckRunner") {}
