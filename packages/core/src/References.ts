@@ -1,6 +1,9 @@
 import * as Ref from "effect/Ref";
 import * as ServiceMap from "effect/ServiceMap";
 
+import { CONTEXT0_DEFAULT_CLI_AGENTS } from "./Constants.js";
+import { type CliAgent } from "./Models.js";
+
 /**
  * @group References
  */
@@ -15,3 +18,15 @@ export const OperationProgress = ServiceMap.Reference<{
 		};
 	},
 });
+
+/**
+ * @group References
+ */
+export const CliAgents = ServiceMap.Reference<ReadonlyArray<CliAgent>>(
+	"CliAgents",
+	{
+		defaultValue: () => {
+			return CONTEXT0_DEFAULT_CLI_AGENTS;
+		},
+	},
+);
