@@ -3,6 +3,7 @@ import type * as SchemaIssue from "effect/SchemaIssue";
 
 import {
 	type AbsolutePath,
+	type CliAgent,
 	type FileQuery,
 	type Tag,
 	type WorkspacePath,
@@ -18,8 +19,8 @@ export class RootDirNotFound extends Data.TaggedError("RootDirNotFound")<{
 /**
  * @group Errors
  */
-export class FileNotFound extends Data.TaggedError("FileNotFound")<{
-	readonly file: AbsolutePath;
+export class LockInfoNotFound extends Data.TaggedError("LockInfoNotFound")<{
+	readonly file: WorkspacePath;
 }> {}
 
 /**
@@ -67,15 +68,6 @@ export class InvalidMarkdownAnnotations extends Data.TaggedError(
 /**
  * @group Errors
  */
-export class MarkdownAnnotationsNotFound extends Data.TaggedError(
-	"MarkdownAnnotationsNotFound",
-)<{
-	readonly file: WorkspacePath;
-}> {}
-
-/**
- * @group Errors
- */
 export class CyclicTagDependency extends Data.TaggedError(
 	"CyclicTagDependency",
 )<{
@@ -116,3 +108,18 @@ export class InvalidFileQuery extends Data.TaggedError("InvalidFileQuery")<{
  */
 // biome-ignore lint/complexity/noBannedTypes: Никаких методанных не требуется
 export class ShellNotFound extends Data.TaggedError("ShellNotFound")<{}> {}
+
+/**
+ * @group Errors
+ */
+export class CliAgentNotFound extends Data.TaggedError("CliAgentNotFound")<{
+	readonly cliAgents?: ReadonlyArray<CliAgent>;
+}> {}
+
+/**
+ * @group Errors
+ */
+export class CliAgentCrash extends Data.TaggedError("CliAgentCrash")<{
+	readonly exitCode: number;
+	readonly stderr: string;
+}> {}
