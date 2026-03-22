@@ -1,20 +1,13 @@
-import type * as Effect from "effect/Effect";
 import type * as Option from "effect/Option";
-import * as ServiceMap from "effect/ServiceMap";
 
-import {
-	type InvalidEntrypointConfig,
-	type InvalidLockfile,
-	type InvalidRootConfig,
-	type RootDirAlreadyDefined,
-	type RootDirNotFound,
-} from "./Errors.js";
 import { type Lockfile } from "./Lockfile.js";
 import {
 	type AbsolutePath,
 	type EntrypointConfig,
+	RelativePath,
 	type RootConfig,
 } from "./Models.js";
+import { withTrailingSlash } from "./Utils.js";
 
 /**
  * @group Models
@@ -22,6 +15,7 @@ import {
 export interface Workspace {
 	readonly _tag: "Workspace";
 	readonly rootDir: AbsolutePath;
+	readonly cacheDir: AbsolutePath;
 	readonly rootConfig: Option.Option<RootConfig>;
 	readonly entrypoints: ReadonlyArray<{
 		readonly dir: AbsolutePath;
@@ -31,28 +25,15 @@ export interface Workspace {
 }
 
 /**
- * @group Services
+ * @group Utils
  */
-export class WorkspaceService extends ServiceMap.Service<
-	WorkspaceService,
-	{
-		/**
-		 * @default startDir process.cwd()
-		 */
-		readonly discover: (
-			startDir?: AbsolutePath,
-		) => Effect.Effect<
-			Workspace,
-			| RootDirNotFound
-			| InvalidLockfile
-			| InvalidRootConfig
-			| InvalidEntrypointConfig
-		>;
-		/**
-		 * @default dir process.cwd()
-		 */
-		readonly init: (
-			dir?: AbsolutePath,
-		) => Effect.Effect<Workspace, RootDirAlreadyDefined>;
-	}
->()("WorkspaceService") {}
+export const relativeDir = (
+	workspace: Workspace,
+	dir: AbsolutePath,
+): RelativePath => {
+	return RelativePath.makeUnsafe(
+		dir === workspace.rootDir
+			? ""
+			: dir.slice(withTrailingSlash(workspace.rootDir).length),
+	);
+};
