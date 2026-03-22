@@ -32,12 +32,12 @@
  */
 import * as Array from "effect/Array";
 import * as Effect from "effect/Effect";
-import { pipe } from "effect/Function";
+import { identity, pipe } from "effect/Function";
 import * as Stream from "effect/Stream";
 
 import { type FileQuery } from "./Models.js";
 
-interface BaseToken {
+interface _BaseToken {
 	readonly start: number;
 	readonly end: number;
 }
@@ -45,7 +45,7 @@ interface BaseToken {
 /**
  * @group Models
  */
-export interface GlobToken extends BaseToken {
+export interface GlobToken extends _BaseToken {
 	readonly kind: "GLOB";
 	readonly value: string;
 }
@@ -53,45 +53,43 @@ export interface GlobToken extends BaseToken {
 /**
  * @group Models
  */
-export interface TagToken extends BaseToken {
+export interface TagToken extends _BaseToken {
 	readonly kind: "TAG";
 	readonly value: string;
 }
 
-type PartialToken = Omit<GlobToken, "end"> | Omit<TagToken, "end">;
-
 /**
  * @group Models
  */
-export interface AndToken extends BaseToken {
+export interface AndToken extends _BaseToken {
 	readonly kind: "AND";
 }
 
 /**
  * @group Models
  */
-export interface OrToken extends BaseToken {
+export interface OrToken extends _BaseToken {
 	readonly kind: "OR";
 }
 
 /**
  * @group Models
  */
-export interface NotToken extends BaseToken {
+export interface NotToken extends _BaseToken {
 	readonly kind: "NOT";
 }
 
 /**
  * @group Models
  */
-export interface LParenToken extends BaseToken {
+export interface LParenToken extends _BaseToken {
 	readonly kind: "LPAREN";
 }
 
 /**
  * @group Models
  */
-export interface RParenToken extends BaseToken {
+export interface RParenToken extends _BaseToken {
 	readonly kind: "RPAREN";
 }
 
@@ -107,152 +105,155 @@ export type Token =
 	| LParenToken
 	| RParenToken;
 
-interface LexerState {
+type _PartialToken = Omit<GlobToken, "end"> | Omit<TagToken, "end">;
+
+interface _LexerState {
 	position: number;
 	mode?: "escaping";
-	current: PartialToken | null;
+	current: _PartialToken | null;
 }
 
-const isEscape = (char: string) => char === "\\";
-const isLParen = (char: string) => char === "(";
-const isRParen = (char: string) => char === ")";
-const isWhitespace = (char: string) => /\s/.test(char);
-const isNot = (char: string) => char === "!";
-const isOr = (char: string) => char === "|";
-const isAnd = (char: string) => char === "&";
-const isGlobPrefix = (char: string) => char === "@";
+const _isEscape = (char: string) => char === "\\";
+const _isLParen = (char: string) => char === "(";
+const _isRParen = (char: string) => char === ")";
+const _isWhitespace = (char: string) => /\s/.test(char);
+const _isNot = (char: string) => char === "!";
+const _isOr = (char: string) => char === "|";
+const _isAnd = (char: string) => char === "&";
+const _isGlobPrefix = (char: string) => char === "@";
+
+const _values = (
+	state: _LexerState,
+	currentToken?: Token,
+): ReadonlyArray<Token> => {
+	const prevTokens = state.current
+		? [
+				{
+					kind: state.current.kind,
+					value: state.current.value,
+					start: state.current.start,
+					end: state.position,
+				},
+			]
+		: [];
+	return Array.appendAll(prevTokens, Array.fromNullishOr(currentToken));
+};
+
+const _flush = (
+	state: _LexerState,
+	next?: Token,
+): readonly [_LexerState, ReadonlyArray<Token>] => [
+	{ position: state.position + 1, current: null },
+	_values(state, next),
+];
+
+const _accumulate = (
+	state: _LexerState,
+	current: _PartialToken | null,
+	mode?: "escaping",
+): readonly [_LexerState, ReadonlyArray<Token>] => [
+	mode
+		? { position: state.position + 1, current, mode }
+		: { position: state.position + 1, current },
+	[],
+];
+
+const _transition = (
+	state: _LexerState,
+	current: _PartialToken | null,
+	mode?: "escaping",
+): readonly [_LexerState, ReadonlyArray<Token>] => [
+	mode
+		? { position: state.position + 1, current, mode }
+		: { position: state.position + 1, current },
+	_values(state),
+];
+
+const _appendChar = (state: _LexerState, char: string): _PartialToken => {
+	return state.current
+		? { ...state.current, value: `${state.current.value}${char}` }
+		: { kind: "TAG", start: state.position, value: char };
+};
 
 /**
  * @group Decoding
  */
 export const tokenize = (query: FileQuery): ReadonlyArray<Token> => {
-	const values = (
-		state: LexerState,
-		currentToken?: Token,
-	): ReadonlyArray<Token> => {
-		const prevTokens = state.current
-			? [
-					{
-						kind: state.current.kind,
-						value: state.current.value,
-						start: state.current.start,
-						end: state.position,
-					},
-				]
-			: [];
-		return Array.appendAll(prevTokens, Array.fromNullishOr(currentToken));
-	};
-
-	const flush = (
-		state: LexerState,
-		next?: Token,
-	): readonly [LexerState, ReadonlyArray<Token>] => [
-		{ position: state.position + 1, current: null },
-		values(state, next),
-	];
-
-	const accumulate = (
-		state: LexerState,
-		current: PartialToken | null,
-		mode?: "escaping",
-	): readonly [LexerState, ReadonlyArray<Token>] => [
-		mode
-			? { position: state.position + 1, current, mode }
-			: { position: state.position + 1, current },
-		[],
-	];
-
-	const transition = (
-		state: LexerState,
-		current: PartialToken | null,
-		mode?: "escaping",
-	): readonly [LexerState, ReadonlyArray<Token>] => [
-		mode
-			? { position: state.position + 1, current, mode }
-			: { position: state.position + 1, current },
-		values(state),
-	];
-
-	const appendChar = (state: LexerState, char: string): PartialToken => {
-		return state.current
-			? { ...state.current, value: `${state.current.value}${char}` }
-			: { kind: "TAG", start: state.position, value: char };
-	};
-
 	const input = [...`${query}\n`];
 	return pipe(
 		Stream.fromIterable(input),
 		Stream.mapAccum(
-			(): LexerState => ({
-				position: 0,
-				current: null,
-			}),
+			() =>
+				identity<_LexerState>({
+					position: 0,
+					current: null,
+				}),
 			(state, char) => {
 				if (state.mode === "escaping") {
-					return accumulate(state, appendChar(state, char));
+					return _accumulate(state, _appendChar(state, char));
 				}
 
-				if (isEscape(char)) {
+				if (_isEscape(char)) {
 					const isLastChar = input.length - 2 === state.position;
 					if (isLastChar) {
-						return flush(state);
+						return _flush(state);
 					}
-					return accumulate(state, state.current, "escaping");
+					return _accumulate(state, state.current, "escaping");
 				}
 
-				if (isLParen(char)) {
-					return flush(state, {
+				if (_isLParen(char)) {
+					return _flush(state, {
 						kind: "LPAREN",
 						start: state.position,
 						end: state.position + 1,
 					});
 				}
 
-				if (isRParen(char)) {
-					return flush(state, {
+				if (_isRParen(char)) {
+					return _flush(state, {
 						kind: "RPAREN",
 						start: state.position,
 						end: state.position + 1,
 					});
 				}
 
-				if (isNot(char)) {
-					return flush(state, {
+				if (_isNot(char)) {
+					return _flush(state, {
 						kind: "NOT",
 						start: state.position,
 						end: state.position + 1,
 					});
 				}
 
-				if (isOr(char)) {
-					return flush(state, {
+				if (_isOr(char)) {
+					return _flush(state, {
 						kind: "OR",
 						start: state.position,
 						end: state.position + 1,
 					});
 				}
 
-				if (isAnd(char)) {
-					return flush(state, {
+				if (_isAnd(char)) {
+					return _flush(state, {
 						kind: "AND",
 						start: state.position,
 						end: state.position + 1,
 					});
 				}
 
-				if (isGlobPrefix(char)) {
-					return transition(state, {
+				if (_isGlobPrefix(char)) {
+					return _transition(state, {
 						kind: "GLOB",
 						start: state.position,
 						value: "",
 					});
 				}
 
-				if (isWhitespace(char)) {
-					return flush(state);
+				if (_isWhitespace(char)) {
+					return _flush(state);
 				}
 
-				return accumulate(state, appendChar(state, char));
+				return _accumulate(state, _appendChar(state, char));
 			},
 		),
 		Stream.runCollect,
