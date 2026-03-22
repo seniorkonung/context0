@@ -1,71 +1,132 @@
 import type * as Effect from "effect/Effect";
 import * as ServiceMap from "effect/ServiceMap";
 
+import { type Feedback } from "./Feedback.js";
 import {
 	type AbsolutePath,
+	type CliAgent,
 	type FileQuery,
 	type Pattern,
 	type RelativePath,
+	type Scope,
 	type Tag,
 	type WorkspacePath,
 } from "./Models.js";
 
 /**
- * @group Namespaces
+ * @group Options
  */
-export namespace Context0 {
+export interface SearchOptions {
 	/**
-	 * @group Options
+	 * @default workspace.rootDir
 	 */
-	export interface SearchOptions {
-		readonly dir?: AbsolutePath | undefined;
-	}
+	readonly dir?: AbsolutePath | undefined;
+}
 
+/**
+ * @group Options
+ */
+export interface DescribeOptions {
 	/**
-	 * @group Options
+	 * @default 'all'
 	 */
-	export interface SyncOptions {
-		readonly dir?: AbsolutePath | undefined;
-		readonly tags?: ReadonlyArray<Tag> | undefined;
-	}
+	readonly scope?: Scope | undefined;
+}
 
+/**
+ * @group Options
+ */
+export interface SyncOptions {
 	/**
-	 * @group Types
+	 * @default workspace.rootDir
 	 */
-	export type SearchReturnType<TOptions> = TOptions extends {
-		dir: infer D;
-	}
-		? [D] extends [AbsolutePath]
-			? ReadonlyArray<RelativePath>
-			: [D] extends [undefined]
-			? ReadonlyArray<WorkspacePath>
-				: ReadonlyArray<WorkspacePath | RelativePath>
-		: ReadonlyArray<WorkspacePath>;
+	readonly dir?: AbsolutePath | undefined;
+	/**
+	 * @default - Все возможные теги
+	 */
+	readonly tags?: ReadonlyArray<Tag> | undefined;
+}
 
+/**
+ * @group Options
+ */
+export interface ReviewOptions {
 	/**
-	 * @group Types
+	 * Какого cli агента использовать
+	 * @default - Тот, который есть в системе в порядке константы CONTEXT0_DEFAULT_CLI_AGENTS
 	 */
-	export interface DescribeReturnType {
-		readonly tags: ReadonlyArray<{
-			readonly name: Tag;
-			readonly description: string;
-		}>;
-		readonly context: ReadonlyArray<{
-			readonly path: WorkspacePath;
-			readonly description: string;
-		}>;
-	}
+	readonly cliAgent?: CliAgent | undefined;
+	/**
+	 * Папка, в которой нужно проводить ревью
+	 * @default workspace.rootDir
+	 */
+	readonly dir?: AbsolutePath | undefined;
+	/**
+	 * Фильтр по файлам, фидбек по которым нужно получить
+	 * @default - Все доступные файлы
+	 */
+	readonly query?: FileQuery | undefined;
+	/**
+	 * Сколько параллельно файлов можно ревьюить
+	 * @default 10
+	 */
+	readonly parallel?: number | undefined;
+	/**
+	 * Обновлять ли ранее сгенерированный фидбек. Если false, то для файлов, которые не были изменены
+	 * фидбек переиспользуется старый
+	 * @default false
+	 */
+	readonly refresh?: boolean | undefined;
+}
 
-	/**
-	 * @group Types
-	 */
-	export interface CheckReturnType {
-		readonly isAllowed: boolean;
-		readonly allowedDirs: ReadonlyArray<Pattern>;
-		readonly allowedFiles: ReadonlyArray<RelativePath>;
-		readonly requiredTags: ReadonlyArray<Tag>;
-		readonly forbbidenTags: ReadonlyArray<Tag>;
-	}
+/**
+ * @group Options
+ */
+export type PlanOptions = Pick<ReviewOptions, "dir" | "query" | "refresh">;
+
+/**
+ * @group Types
+ */
+export interface DescribeReturnType {
+	readonly tags: ReadonlyArray<{
+		readonly name: Tag;
+		readonly description: string;
+	}>;
+	readonly context: ReadonlyArray<{
+		readonly path: WorkspacePath;
+		readonly scope: Scope;
+		readonly description: string;
+	}>;
+}
+
+/**
+ * @group Types
+ */
+export type ReviewReturnType = ReadonlyArray<{
+	readonly path: WorkspacePath | RelativePath;
+	readonly feedback: Feedback;
+}>;
+
+/**
+ * @group Types
+ */
+export interface PlanReturnType<
+	Path extends WorkspacePath | RelativePath = WorkspacePath | RelativePath,
+> {
+	readonly reviewedWithFeedback: ReadonlyArray<Path>;
+	readonly reviewedWithoutFeedback: ReadonlyArray<Path>;
+	readonly pending: ReadonlyArray<Path>;
+}
+
+/**
+ * @group Types
+ */
+export interface CheckReturnType {
+	readonly isAllowed: boolean;
+	readonly allowedDirs: ReadonlyArray<Pattern>;
+	readonly allowedFiles: ReadonlyArray<RelativePath>;
+	readonly requiredTags: ReadonlyArray<Tag>;
+	readonly prohibitedTags: ReadonlyArray<Tag>;
 }
 
 /**
@@ -74,16 +135,25 @@ export namespace Context0 {
 export class Context0 extends ServiceMap.Service<
 	Context0,
 	{
-		readonly search: <TOptions extends Context0.SearchOptions>(
+		readonly search: (
 			query: FileQuery,
-			options?: TOptions,
-		) => Effect.Effect<Context0.SearchReturnType<TOptions>>;
+			options?: SearchOptions,
+		) => Effect.Effect<
+			ReadonlyArray<WorkspacePath> | ReadonlyArray<RelativePath>
+		>;
 		readonly describe: (
 			file: AbsolutePath,
-		) => Effect.Effect<Context0.DescribeReturnType>;
-		readonly check: () => Effect.Effect<void>;
-		readonly review: () => Effect.Effect<void>;
-		readonly sync: () => Effect.Effect<void>;
-		// readonly validate: () => Effect.Effect<void>;
+			options?: DescribeOptions,
+		) => Effect.Effect<DescribeReturnType>;
+		readonly check: (path: AbsolutePath) => Effect.Effect<CheckReturnType>;
+		readonly review: (
+			options?: ReviewOptions,
+		) => Effect.Effect<ReviewReturnType>;
+		readonly plan: (
+			options?: PlanOptions,
+		) => Effect.Effect<
+			PlanReturnType<WorkspacePath> | PlanReturnType<RelativePath>
+		>;
+		readonly sync: (options?: SyncOptions) => Effect.Effect<void>;
 	}
 >()("Context0") {}
