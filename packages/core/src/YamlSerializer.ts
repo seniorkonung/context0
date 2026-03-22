@@ -1,6 +1,6 @@
 import yaml from "js-yaml";
 
-class CustomDump {
+class _CustomDump {
 	constructor(
 		private readonly data: unknown,
 		private readonly opts: yaml.DumpOptions,
@@ -9,7 +9,7 @@ class CustomDump {
 	represent() {
 		let result = yaml.dump(
 			this.data,
-			Object.assign({ replacer, schema }, this.opts),
+			Object.assign({ _replacer, _schema }, this.opts),
 		);
 		result = result.trim();
 		if (result.includes("\n")) {
@@ -19,36 +19,36 @@ class CustomDump {
 	}
 }
 
-const customDumpType = new yaml.Type("!format", {
+const _customDumpType = new yaml.Type("!format", {
 	kind: "scalar",
 	resolve: () => false,
-	instanceOf: CustomDump,
-	represent: (d: unknown) => (d as CustomDump).represent(),
+	instanceOf: _CustomDump,
+	represent: (d: unknown) => (d as _CustomDump).represent(),
 });
 
-const schema = yaml.DEFAULT_SCHEMA.extend({ implicit: [customDumpType] });
+const _schema = yaml.DEFAULT_SCHEMA.extend({ implicit: [_customDumpType] });
 
-const isObject = (value: unknown): value is object =>
+const _isObject = (value: unknown): value is object =>
 	typeof value === "object" && value != null;
 
-function hasSimpleChildren(value: unknown) {
-	if (isObject(value)) {
+function _hasSimpleChildren(value: unknown) {
+	if (_isObject(value)) {
 		return Object.values(value).every(
-			(value) => !isObject(value) && !Array.isArray(value),
+			(value) => !_isObject(value) && !Array.isArray(value),
 		);
 	}
 	if (Array.isArray(value)) {
-		return value.every((value) => !isObject(value) && !Array.isArray(value));
+		return value.every((value) => !_isObject(value) && !Array.isArray(value));
 	}
 }
 
-function replacer(key: string, value: unknown) {
+function _replacer(key: string, value: unknown) {
 	if (key === "") {
 		return value;
 	} // top-level, don't change this
 
-	if (key === "fullTargets" || hasSimpleChildren(value)) {
-		return new CustomDump(value, { flowLevel: 0 });
+	if (key === "fullTargets" || _hasSimpleChildren(value)) {
+		return new _CustomDump(value, { flowLevel: 0 });
 	}
 
 	return value; // default
@@ -57,5 +57,5 @@ function replacer(key: string, value: unknown) {
 /**
  * @group Encoding
  */
-export const serialize = (obj: unknown) =>
-	new CustomDump(obj, { sortKeys: true }).represent().trim();
+export const serialize = (obj: unknown): string =>
+	new _CustomDump(obj, { sortKeys: true }).represent().trim();
