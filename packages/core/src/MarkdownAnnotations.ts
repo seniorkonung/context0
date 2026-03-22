@@ -1,6 +1,7 @@
 import * as Array from "effect/Array";
 import * as Effect from "effect/Effect";
 import { pipe } from "effect/Function";
+import * as Option from "effect/Option";
 import * as Record from "effect/Record";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
@@ -9,7 +10,6 @@ import * as SchemaParser from "effect/SchemaParser";
 
 import {
 	InvalidMarkdownAnnotations,
-	MarkdownAnnotationsNotFound,
 	UnresolvedTagDependency,
 } from "./Errors.js";
 import * as Frontmatter from "./Frontmatter.js";
@@ -51,9 +51,7 @@ export const fromMarkdown = (
 	configGroup: ConfigGroup,
 ): Result.Result<
 	MarkdownAnnotations,
-	| InvalidMarkdownAnnotations
-	| MarkdownAnnotationsNotFound
-	| UnresolvedTagDependency
+	InvalidMarkdownAnnotations | UnresolvedTagDependency
 > => {
 	const annotations = Effect.fromOption(Frontmatter.load(markdown)).pipe(
 		Effect.andThen(SchemaParser.decodeUnknownEffect(MarkdownAnnotations)),
@@ -62,7 +60,16 @@ export const fromMarkdown = (
 		),
 		Effect.catchTags({
 			NoSuchElementError: () =>
-				new MarkdownAnnotationsNotFound({ file }).asEffect(),
+				Effect.succeed(
+					MarkdownAnnotations.makeUnsafe({
+						_tag: "MarkdownAnnotations",
+						depends: Option.none(),
+						description: Option.none(),
+						groupBy: Option.none(),
+						scope: "all",
+						tags: [],
+					}),
+				),
 		}),
 		Effect.result,
 		Effect.runSync,
