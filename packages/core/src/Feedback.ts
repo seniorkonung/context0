@@ -1,7 +1,7 @@
 import * as Array from "effect/Array";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
-import { dual, pipe } from "effect/Function";
+import { pipe } from "effect/Function";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Result from "effect/Result";
@@ -74,80 +74,70 @@ export const FEEDBACK_SECTION_SEPARATOR =
 /**
  * @group Decoding
  */
-export const fromLlmOutput = dual<
-	(
-		rootDir: AbsolutePath,
-	) => (
-		input: string,
-	) => Effect.Effect<Feedback, never, Path.Path | FileSystem.FileSystem>,
-	(
-		input: string,
-		rootDir: AbsolutePath,
-	) => Effect.Effect<Feedback, never, Path.Path | FileSystem.FileSystem>
->(
-	2,
-	Effect.fnUntraced(function* (input, rootDir) {
-		const fs = yield* FileSystem.FileSystem;
-		const path = yield* Path.Path;
+export const fromLlmOutput = Effect.fnUntraced(function* (
+	input: string,
+	rootDir: AbsolutePath,
+) {
+	const fs = yield* FileSystem.FileSystem;
+	const path = yield* Path.Path;
 
-		return yield* Effect.forEach(
-			input
-				.split(new RegExp(`^\\s*${FEEDBACK_ITEM_SEPARATOR}\\s*$`, "m"))
-				.filter((raw) => raw.trim().length > 0),
-			Effect.fnUntraced(function* (rawFeedback) {
-				const [rawAttributes, text] = pipe(
-					rawFeedback,
-					String.split(
-						new RegExp(`^\\s*${FEEDBACK_SECTION_SEPARATOR}\\s*$`, "m"),
-					),
-					([attributes, ...tail]) => [attributes, tail.join("")] as const,
-				);
+	return yield* Effect.forEach(
+		input
+			.split(new RegExp(`^\\s*${FEEDBACK_ITEM_SEPARATOR}\\s*$`, "m"))
+			.filter((raw) => raw.trim().length > 0),
+		Effect.fnUntraced(function* (rawFeedback) {
+			const [rawAttributes, text] = pipe(
+				rawFeedback,
+				String.split(
+					new RegExp(`^\\s*${FEEDBACK_SECTION_SEPARATOR}\\s*$`, "m"),
+				),
+				([attributes, ...tail]) => [attributes, tail.join("")] as const,
+			);
 
-				const level = Option.fromNullishOr(
-					rawAttributes.match(/^LEVEL=(.*)$/m),
-				).pipe(
-					Option.flatMap(Array.get(1)),
-					Option.map(String.toLowerCase),
-					Option.flatMap(SchemaParser.decodeOption(FeedbackLevel)),
-				);
+			const level = Option.fromNullishOr(
+				rawAttributes.match(/^LEVEL=(.*)$/m),
+			).pipe(
+				Option.flatMap(Array.get(1)),
+				Option.map(String.toLowerCase),
+				Option.flatMap(SchemaParser.decodeOption(FeedbackLevel)),
+			);
 
-				const contextFile = yield* Option.fromNullishOr(
-					rawAttributes.match(/^CONTEXT_FILE=(.*)$/m),
-				).pipe(
-					Option.flatMap(Array.get(1)),
-					Effect.fromOption,
-					Effect.andThen(
-						Effect.fnUntraced(function* (relativePath) {
-							const absolutePath = AbsolutePath.makeUnsafe(
-								path.resolve(rootDir, relativePath),
+			const contextFile = yield* Option.fromNullishOr(
+				rawAttributes.match(/^CONTEXT_FILE=(.*)$/m),
+			).pipe(
+				Option.flatMap(Array.get(1)),
+				Effect.fromOption,
+				Effect.andThen(
+					Effect.fnUntraced(function* (relativePath) {
+						const absolutePath = AbsolutePath.makeUnsafe(
+							path.resolve(rootDir, relativePath),
+						);
+						const contextFileExists = yield* fs.exists(absolutePath);
+						if (contextFileExists) {
+							return yield* Result.succeed(
+								WorkspacePath.makeUnsafe(absolutePath.replace(rootDir, "/")),
 							);
-							const contextFileExists = yield* fs.exists(absolutePath);
-							if (contextFileExists) {
-								return yield* Result.succeed(
-									WorkspacePath.makeUnsafe(absolutePath.replace(rootDir, "/")),
-								);
-							}
-							return yield* Result.failVoid;
-						}),
-					),
-					Effect.option,
-				);
+						}
+						return yield* Result.failVoid;
+					}),
+				),
+				Effect.option,
+			);
 
-				const summary = Option.fromNullishOr(
-					rawAttributes.match(/^SUMMARY=(.*)$/m),
-				).pipe(
-					Option.flatMap(Array.get(1)),
-					Option.flatMap(SchemaParser.decodeOption(FeedbackSummary)),
-				);
+			const summary = Option.fromNullishOr(
+				rawAttributes.match(/^SUMMARY=(.*)$/m),
+			).pipe(
+				Option.flatMap(Array.get(1)),
+				Option.flatMap(SchemaParser.decodeOption(FeedbackSummary)),
+			);
 
-				return FeedbackItem.makeUnsafe({
-					_tag: "FeedbackItem",
-					contextFile,
-					level,
-					summary,
-					text: text.trim(),
-				});
-			}),
-		);
-	}),
-);
+			return FeedbackItem.makeUnsafe({
+				_tag: "FeedbackItem",
+				contextFile,
+				level,
+				summary,
+				text: text.trim(),
+			});
+		}),
+	);
+});
