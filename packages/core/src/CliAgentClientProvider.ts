@@ -11,63 +11,65 @@ import { CliAgentClient, type QueryParams } from "./CliAgentClient.js";
 import { CliAgentCrash, CliAgentNotFound } from "./Errors.js";
 import { CliAgents } from "./References.js";
 
+const _makeQuery = Effect.gen(function* () {
+	const processSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+	return Effect.fn("query")(function* (params: QueryParams) {
+		const cliAgents = yield* CliAgents;
+
+		for (const cliAgent of cliAgents) {
+			const command = Match.value({ cliAgent }).pipe(
+				Match.discriminators("cliAgent")({
+					claude: () => ({ cmd: "claude", args: ["-p"] }),
+				}),
+				Match.exhaustive,
+			);
+
+			const handle = yield* ChildProcess.make(command.cmd, command.args, {
+				extendEnv: true,
+				detached: false,
+				cwd: params.cwd,
+				stdin: Stream.fromEffect(
+					Effect.succeed(new TextEncoder().encode(params.prompt)),
+				),
+			}).pipe(processSpawner.spawn, Effect.result);
+
+			if (handle._tag === "Failure") {
+				const error = handle.failure;
+				if ("_tag" in error.reason && error.reason._tag === "NotFound") {
+					continue;
+				}
+				return yield* error;
+			}
+
+			const stdout = yield* handle.success.stdout.pipe(
+				Stream.map((output) => new TextDecoder().decode(output)),
+				Stream.runCollect,
+				Effect.map(Array.join("")),
+			);
+			const stderr = yield* handle.success.stderr.pipe(
+				Stream.map((output) => new TextDecoder().decode(output)),
+				Stream.runCollect,
+				Effect.map(Array.join("")),
+			);
+
+			const exitCode = yield* handle.success.exitCode;
+			if (exitCode === 0) return stdout;
+			return yield* new CliAgentCrash({ stderr, exitCode });
+		}
+
+		return yield* new CliAgentNotFound({
+			cliAgents,
+		});
+	}, Effect.scoped);
+});
+
 /**
  * @group Layers
  */
 export const layer = Layer.effect(
 	CliAgentClient,
 	Effect.gen(function* () {
-		const processSpawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-
-		const query = Effect.fn("query")(function* (params: QueryParams) {
-			const cliAgents = yield* CliAgents;
-
-			for (const cliAgent of cliAgents) {
-				const command = Match.value({ cliAgent }).pipe(
-					Match.discriminators("cliAgent")({
-						claude: () => ({ cmd: "claude", args: ["-p"] }),
-					}),
-					Match.exhaustive,
-				);
-
-				const handle = yield* ChildProcess.make(command.cmd, command.args, {
-					extendEnv: true,
-					detached: false,
-					cwd: params.cwd,
-					stdin: Stream.fromEffect(
-						Effect.succeed(new TextEncoder().encode(params.prompt)),
-					),
-				}).pipe(processSpawner.spawn, Effect.result);
-
-				if (handle._tag === "Failure") {
-					const error = handle.failure;
-					if ("_tag" in error.reason && error.reason._tag === "NotFound") {
-						continue;
-					}
-					return yield* error;
-				}
-
-				const stdout = yield* handle.success.stdout.pipe(
-					Stream.map((output) => new TextDecoder().decode(output)),
-					Stream.runCollect,
-					Effect.map(Array.join("")),
-				);
-				const stderr = yield* handle.success.stderr.pipe(
-					Stream.map((output) => new TextDecoder().decode(output)),
-					Stream.runCollect,
-					Effect.map(Array.join("")),
-				);
-
-				const exitCode = yield* handle.success.exitCode;
-				if (exitCode === 0) return stdout;
-				return yield* new CliAgentCrash({ stderr, exitCode });
-			}
-
-			return yield* new CliAgentNotFound({
-				cliAgents,
-			});
-		}, Effect.scoped);
-
+		const query = yield* _makeQuery;
 		return {
 			query: flow(
 				query,
