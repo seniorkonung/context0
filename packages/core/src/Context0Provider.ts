@@ -33,6 +33,7 @@ import {
 	AbsolutePath,
 	FileQuery,
 	RelativePath,
+	type Scope,
 	type Tag,
 	WorkspacePath,
 } from "./Models.js";
@@ -42,6 +43,8 @@ import * as Workspace from "./Workspace.js";
 import { WorkspaceService } from "./WorkspaceService.js";
 import * as WorkspaceServiceProvider from "./WorkspaceServiceProvider.js";
 import * as YamlSerializer from "./YamlSerializer.js";
+
+const _reviewScope: Scope = ["review"];
 
 const _makePlan = Effect.gen(function* () {
 	const fileHasher = yield* FileHasher;
@@ -108,9 +111,18 @@ const _makePlan = Effect.gen(function* () {
 
 			if (options?.refresh) {
 				const pending = yield* filteredFilesStream.pipe(
-					Stream.map(({ file }) => {
-						return file;
-					}),
+					Stream.mapEffect(
+						Effect.fnUntraced(function* ({ file, workspacePath }) {
+							return {
+								path: file,
+								contextFiles: yield* Lockfile.fileContext(
+									workspace.lockfile,
+									workspacePath,
+									_reviewScope,
+								),
+							};
+						}),
+					),
 					Stream.runCollect,
 				);
 				return identity<Context0.PlanReturnType>({
@@ -131,20 +143,34 @@ const _makePlan = Effect.gen(function* () {
 						pending: [],
 					}),
 					Effect.fnUntraced(function* (acc, { file, lockinfo, workspacePath }) {
+						const contextFiles = yield* Lockfile.fileContext(
+							workspace.lockfile,
+							workspacePath,
+							_reviewScope,
+						);
+
 						if (lockinfo.hash._tag === "None") {
 							return {
 								...acc,
-								pending: Array.append(acc.pending, file),
+								pending: Array.append(acc.pending, {
+									path: file,
+									contextFiles,
+								}),
 							};
 						}
 
-						const hash = yield* fileHasher.hash(workspace, workspacePath, [
-							"review",
-						]);
+						const hash = yield* fileHasher.hash(
+							workspace,
+							workspacePath,
+							_reviewScope,
+						);
 						if (lockinfo.hash.value !== hash) {
 							return {
 								...acc,
-								pending: Array.append(acc.pending, file),
+								pending: Array.append(acc.pending, {
+									path: file,
+									contextFiles,
+								}),
 							};
 						}
 
@@ -152,10 +178,10 @@ const _makePlan = Effect.gen(function* () {
 						if (cacheExists) {
 							return {
 								...acc,
-								reviewedWithFeedback: Array.append(
-									acc.reviewedWithFeedback,
-									file,
-								),
+								reviewedWithFeedback: Array.append(acc.reviewedWithFeedback, {
+									path: file,
+									contextFiles,
+								}),
 							};
 						}
 
@@ -163,7 +189,7 @@ const _makePlan = Effect.gen(function* () {
 							...acc,
 							reviewedWithoutFeedback: Array.append(
 								acc.reviewedWithoutFeedback,
-								file,
+								{ path: file, contextFiles },
 							),
 						};
 					}),
@@ -500,7 +526,7 @@ const _makeReview = Effect.gen(function* () {
 
 		const rawReview = yield* Effect.forEach(
 			plan.pending,
-			Effect.fnUntraced(function* (file) {
+			Effect.fnUntraced(function* ({ path: file, contextFiles }) {
 				const workspacePath = SchemaParser.is(WorkspacePath)(file)
 					? file
 					: WorkspacePath.makeUnsafe(
@@ -513,14 +539,11 @@ const _makeReview = Effect.gen(function* () {
 					absolutePath.replace(withTrailingSlash(workspace.rootDir), ""),
 				);
 
-				const contextFiles = yield* Lockfile.fileContext(
-					workspace.lockfile,
+				const hash = yield* fileHasher.hash(
+					workspace,
 					workspacePath,
-					["review"],
+					_reviewScope,
 				);
-				const hash = yield* fileHasher.hash(workspace, workspacePath, [
-					"review",
-				]);
 
 				if (contextFiles.length === 0) {
 					return {

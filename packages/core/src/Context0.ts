@@ -113,9 +113,18 @@ export type ReviewReturnType = ReadonlyArray<{
 export interface PlanReturnType<
 	Path extends WorkspacePath | RelativePath = WorkspacePath | RelativePath,
 > {
-	readonly reviewedWithFeedback: ReadonlyArray<Path>;
-	readonly reviewedWithoutFeedback: ReadonlyArray<Path>;
-	readonly pending: ReadonlyArray<Path>;
+	readonly reviewedWithFeedback: ReadonlyArray<{
+		readonly path: Path;
+		readonly contextFiles: ReadonlyArray<WorkspacePath>;
+	}>;
+	readonly reviewedWithoutFeedback: ReadonlyArray<{
+		readonly path: Path;
+		readonly contextFiles: ReadonlyArray<WorkspacePath>;
+	}>;
+	readonly pending: ReadonlyArray<{
+		readonly path: Path;
+		readonly contextFiles: ReadonlyArray<WorkspacePath>;
+	}>;
 }
 
 /**
