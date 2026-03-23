@@ -74,7 +74,7 @@ const _makePlan = Effect.gen(function* () {
 				Option.getOrUndefined,
 			);
 
-			const plan = yield* pipe(
+			const filteredFilesStream = pipe(
 				Stream.fromIterable(Record.toEntries(workspace.lockfile)),
 				Stream.filterMap(([file, lockinfo]) => {
 					const workspacePath = WorkspacePath.makeUnsafe(`//${file}`);
@@ -104,53 +104,68 @@ const _makePlan = Effect.gen(function* () {
 						? true
 						: FileFilter.matches(fileFilter.value, file, lockinfo),
 				),
-				Stream.mapAccumEffect(
-					() =>
-						({
-							reviewedWithFeedback: [],
-							reviewedWithoutFeedback: [],
-							pending: [],
-						}) as Context0.PlanReturnType,
-					Effect.fnUntraced(function* (acc, { file, lockinfo, workspacePath }) {
-						const _succeed = (acc: Context0.PlanReturnType) => {
-							return [acc, [acc]] as const;
-						};
+			);
 
+			if (options?.refresh) {
+				const pending = yield* filteredFilesStream.pipe(
+					Stream.map(({ file }) => {
+						return file;
+					}),
+					Stream.runCollect,
+				);
+				return identity<Context0.PlanReturnType>({
+					pending,
+					reviewedWithFeedback: [],
+					reviewedWithoutFeedback: [],
+				}) as
+					| Context0.PlanReturnType<WorkspacePath>
+					| Context0.PlanReturnType<RelativePath>;
+			}
+
+			const plan = yield* pipe(
+				filteredFilesStream,
+				Stream.scanEffect(
+					identity<Context0.PlanReturnType>({
+						reviewedWithFeedback: [],
+						reviewedWithoutFeedback: [],
+						pending: [],
+					}),
+					Effect.fnUntraced(function* (acc, { file, lockinfo, workspacePath }) {
 						if (lockinfo.hash._tag === "None") {
-							return _succeed({
+							return {
 								...acc,
 								pending: Array.append(acc.pending, file),
-							});
+							};
 						}
 
 						const hash = yield* fileHasher.hash(workspace, workspacePath, [
 							"review",
 						]);
 						if (lockinfo.hash.value !== hash) {
-							return _succeed({
+							return {
 								...acc,
 								pending: Array.append(acc.pending, file),
-							});
+							};
 						}
 
 						const cacheExists = yield* cache.has(hash);
 						if (cacheExists) {
-							return _succeed({
+							return {
 								...acc,
 								reviewedWithFeedback: Array.append(
 									acc.reviewedWithFeedback,
 									file,
 								),
-							});
+							};
 						}
 
-						return _succeed({
+						return {
 							...acc,
 							reviewedWithoutFeedback: Array.append(
 								acc.reviewedWithoutFeedback,
 								file,
 							),
-						});
+						};
 					}),
 				),
 				Stream.runLast,
@@ -484,9 +499,7 @@ const _makeReview = Effect.gen(function* () {
 		const cwd = options?.dir ?? workspace.rootDir;
 
 		const rawReview = yield* Effect.forEach(
-			options?.refresh
-				? [...plan.pending, ...plan.reviewedWithoutFeedback]
-				: plan.pending,
+			plan.pending,
 			Effect.fnUntraced(function* (file) {
 				const workspacePath = SchemaParser.is(WorkspacePath)(file)
 					? file
