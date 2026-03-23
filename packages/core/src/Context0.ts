@@ -57,6 +57,11 @@ export interface ReviewOptions {
 	 */
 	readonly cliAgent?: CliAgent | undefined;
 	/**
+	 * Файл, для которого нужно провести ревью
+	 * @default undefined
+	 */
+	readonly file?: AbsolutePath | undefined;
+	/**
 	 * Папка, в которой нужно проводить ревью
 	 * @default workspace.rootDir
 	 */
@@ -82,7 +87,10 @@ export interface ReviewOptions {
 /**
  * @group Options
  */
-export type PlanOptions = Pick<ReviewOptions, "dir" | "query" | "refresh">;
+export type PlanOptions = Pick<
+	ReviewOptions,
+	"dir" | "query" | "refresh" | "file"
+>;
 
 /**
  * @group Types

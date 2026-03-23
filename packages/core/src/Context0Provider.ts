@@ -23,6 +23,7 @@ import * as CliAgentClientProvider from "./CliAgentClientProvider.js";
 import * as ConfigResolver from "./ConfigResolver.js";
 import * as Constants from "./Constants.js";
 import * as Context0 from "./Context0.js";
+import { FileNotInDirectory } from "./Errors.js";
 import * as Feedback from "./Feedback.js";
 import * as FileFilter from "./FileFilter.js";
 import { FileHasher } from "./FileHasher.js";
@@ -51,7 +52,16 @@ const _makePlan = Effect.gen(function* () {
 	const fs = yield* FileSystem.FileSystem;
 	const path = yield* Path.Path;
 	return (workspace: Workspace.Workspace) =>
-		Effect.fn("plan")(function* (options: Context0.ReviewOptions | undefined) {
+		Effect.fn("plan")(function* (options: Context0.PlanOptions | undefined) {
+			if (options?.dir && options?.file) {
+				if (!options.file.startsWith(withTrailingSlash(options.dir))) {
+					return yield* new FileNotInDirectory({
+						dir: options.dir,
+						file: options.file,
+					});
+				}
+			}
+
 			const cache = yield* pipe(
 				KeyValueStore.KeyValueStore.asEffect(),
 				Effect.provide(KeyValueStore.layerFileSystem(workspace.cacheDir)),
@@ -80,7 +90,26 @@ const _makePlan = Effect.gen(function* () {
 			const filteredFilesStream = pipe(
 				Stream.fromIterable(Record.toEntries(workspace.lockfile)),
 				Stream.filterMap(([file, lockinfo]) => {
+					const absolutePath = AbsolutePath.makeUnsafe(
+						path.resolve(workspace.rootDir, file),
+					);
 					const workspacePath = WorkspacePath.makeUnsafe(`//${file}`);
+
+					if (options?.file) {
+						if (absolutePath === options.file) {
+							return Result.succeed({
+								workspacePath,
+								file:
+									relativeDir === undefined
+										? workspacePath
+										: RelativePath.makeUnsafe(
+												file.replace(withTrailingSlash(relativeDir), ""),
+											),
+								lockinfo,
+							});
+						}
+						return Result.failVoid;
+					}
 
 					if (relativeDir === undefined) {
 						return Result.succeed({

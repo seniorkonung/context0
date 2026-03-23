@@ -123,3 +123,11 @@ export class CliAgentCrash extends Data.TaggedError("CliAgentCrash")<{
 	readonly exitCode: number;
 	readonly stderr: string;
 }> {}
+
+/**
+ * @group Errors
+ */
+export class FileNotInDirectory extends Data.TaggedError("FileNotInDirectory")<{
+	readonly file: AbsolutePath;
+	readonly dir: AbsolutePath;
+}> {}
