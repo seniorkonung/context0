@@ -1,7 +1,7 @@
 import * as Context0 from "@context0/core/Context0";
 import * as Models from "@context0/core/Models";
 import * as References from "@context0/core/References";
-import * as Workspace from "@context0/core/Workspace";
+import * as WorkspaceService from "@context0/core/WorkspaceService";
 import ansi from "ansi-escapes";
 import chalk from "chalk";
 import * as Array from "effect/Array";
@@ -10,29 +10,19 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import { pipe } from "effect/Function";
 import * as Option from "effect/Option";
-import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
 import * as Schedule from "effect/Schedule";
+import * as Schema from "effect/Schema";
 import * as String from "effect/String";
 import * as Terminal from "effect/Terminal";
 import * as Argument from "effect/unstable/cli/Argument";
 import * as Command from "effect/unstable/cli/Command";
 import * as Flag from "effect/unstable/cli/Flag";
 
+import { QueryArgument } from "./Arguments.js";
 import * as CliUi from "./CliUi.js";
 import { IS_INTERACTIVE_TERMINAL, SPINNER_FRAMES } from "./Constants.js";
-
-/**
- * @group Flags
- */
-export const JsonFlag = Flag.boolean("json");
-
-/**
- * @group Flags
- */
-export const DirFlag = Flag.directory("dir", { mustExist: true }).pipe(
-	Flag.optional,
-);
+import { DirFlag, JsonFlag } from "./Flags.js";
 
 /**
  * @group Commands
@@ -40,15 +30,11 @@ export const DirFlag = Flag.directory("dir", { mustExist: true }).pipe(
 export const InitCommand = Command.make(
 	"init",
 	{
-		dir: Flag.string("dir").pipe(Flag.withAlias("d"), Flag.optional),
+		dir: DirFlag,
 	},
 	Effect.fn("InitCommand")(function* ({ dir }) {
-		const path = yield* Path.Path;
-		const workspaceService = yield* Workspace.WorkspaceService;
-		const startDir = Models.AbsolutePath.makeUnsafe(
-			path.resolve(Option.getOrElse(dir, () => ".")),
-		);
-		yield* workspaceService.init(startDir);
+		const workspaceService = yield* WorkspaceService.WorkspaceService;
+		yield* workspaceService.init(dir);
 	}),
 );
 
@@ -61,7 +47,7 @@ export const SyncCommand = Command.make(
 		noProgress: Flag.boolean("no-progress"),
 		progress: Flag.boolean("progress"),
 		quiet: Flag.boolean("quiet"),
-		dir: Flag.directory("dir", { mustExist: true }).pipe(Flag.optional),
+		dir: DirFlag,
 		tags: Flag.string("tag").pipe(
 			Flag.withAlias("t"),
 			Flag.withSchema(Models.Tag),
@@ -76,7 +62,6 @@ export const SyncCommand = Command.make(
 		quiet,
 	}) {
 		const terminal = yield* Terminal.Terminal;
-		const path = yield* Path.Path;
 		const context0 = yield* Context0.Context0;
 		const operationProgress = yield* References.OperationProgress;
 
@@ -98,9 +83,7 @@ export const SyncCommand = Command.make(
 			[
 				context0
 					.sync({
-						dir: Option.map(dir, (dir) =>
-							Models.AbsolutePath.makeUnsafe(path.resolve(dir)),
-						).pipe(Option.getOrUndefined),
+						dir,
 						tags: tags,
 					})
 					.pipe(Effect.onExit(() => Ref.set(isSyncingRef, false))),
@@ -175,20 +158,15 @@ export const SyncCommand = Command.make(
 export const SearchCommand = Command.make(
 	"search",
 	{
-		query: Argument.string("query"),
+		query: QueryArgument,
 		json: JsonFlag,
 		dir: DirFlag,
 	},
 	Effect.fn("SearchCommand")(function* ({ query, json, dir }) {
-		const path = yield* Path.Path;
 		const terminal = yield* Terminal.Terminal;
 		const context0 = yield* Context0.Context0;
-		const files = yield* context0.search(Models.FileQuery.makeUnsafe(query), {
-			dir: pipe(
-				dir,
-				Option.map((dir) => Models.AbsolutePath.makeUnsafe(path.resolve(dir))),
-				Option.getOrUndefined,
-			),
+		const files = yield* context0.search(query, {
+			dir,
 		});
 
 		if (json) {
@@ -197,7 +175,9 @@ export const SearchCommand = Command.make(
 			return;
 		}
 
-		yield* terminal.display(files.join("\n"));
+		const prettyElement = (str: string): string => chalk.green(str);
+
+		yield* terminal.display(files.map(prettyElement).join("\n"));
 		yield* terminal.display("\n");
 	}),
 );
@@ -271,8 +251,65 @@ export const DescribeCommand = Command.make(
 /**
  * @group Commands
  */
+export const ReviewCommand = Command.make(
+	"review",
+	{
+		plan: Flag.boolean("plan"),
+		agent: Flag.string("agent").pipe(
+			Flag.withSchema(Models.CliAgent),
+			Flag.optional,
+			Flag.map(Option.getOrUndefined),
+		),
+		parallel: Flag.string("parallel").pipe(
+			Flag.withSchema(Schema.NumberFromString),
+			Flag.optional,
+			Flag.map(Option.getOrUndefined),
+		),
+		refresh: Flag.boolean("refresh"),
+		dir: DirFlag,
+		query: QueryArgument.pipe(
+			Argument.optional,
+			Argument.map(Option.getOrUndefined),
+		),
+	},
+	Effect.fn("ReviewCommand")(function* ({
+		plan,
+		refresh,
+		dir,
+		query,
+		parallel,
+		agent,
+	}) {
+		const context0 = yield* Context0.Context0;
+		if (plan) {
+			yield* context0
+				.plan({
+					dir,
+					query,
+					refresh,
+				})
+				.pipe(Effect.tap(Effect.log));
+		} else {
+			const h = yield* context0
+				.review({
+					parallel,
+					cliAgent: agent,
+					dir,
+					query,
+					refresh,
+				})
+				.pipe(Effect.tap(Effect.log));
+			console.dir(h, { depth: null });
+		}
+	}),
+);
+
+/**
+ * @group Commands
+ */
 export const Context0Command = Command.make("context0").pipe(
 	Command.withSubcommands([
+		ReviewCommand,
 		InitCommand,
 		SyncCommand,
 		SearchCommand,
