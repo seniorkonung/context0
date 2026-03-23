@@ -30,6 +30,73 @@ export interface ConfigResolver {
 	readonly groups: ReadonlyArray<ConfigGroup>;
 }
 
+const _computeApplicableConfigs = (
+	workspace: Workspace,
+	targetDir: AbsolutePath,
+): ReadonlyArray<RootConfig | EntrypointConfig> => {
+	return pipe(
+		workspace.entrypoints,
+		Array.filter(({ dir }) => targetDir.startsWith(dir)),
+		Array.flatMap(({ config }) => Array.fromOption(config)),
+		Array.prependAll(Array.fromOption(workspace.rootConfig)),
+	);
+};
+
+const _findAllExplicitDeps = (
+	checks: ReadonlyArray<CheckStep>,
+): ReadonlyArray<Tag> => {
+	return pipe(
+		checks,
+		Array.reduce([] as ReadonlyArray<Tag>, (acc, checkStep) =>
+			pipe(
+				acc,
+				Array.appendAll("tags" in checkStep ? checkStep.tags : []),
+				Array.appendAll(
+					"not" in checkStep ? _findAllExplicitDeps([checkStep.not]) : [],
+				),
+				Array.appendAll(
+					"allOf" in checkStep ? _findAllExplicitDeps(checkStep.allOf) : [],
+				),
+				Array.appendAll(
+					"anyOf" in checkStep ? _findAllExplicitDeps(checkStep.anyOf) : [],
+				),
+				Array.appendAll(
+					"oneOf" in checkStep ? _findAllExplicitDeps(checkStep.oneOf) : [],
+				),
+				Array.appendAll(
+					"noneOf" in checkStep ? _findAllExplicitDeps(checkStep.noneOf) : [],
+				),
+				Array.appendAll(
+					"if" in checkStep
+						? _findAllExplicitDeps([
+								checkStep.if,
+								checkStep.then,
+								...Array.fromNullishOr(checkStep.else),
+							])
+						: [],
+				),
+			),
+		),
+	);
+};
+
+const _findAllImplicitDeps = (tag: Tag): ReadonlyArray<Tag> => {
+	return pipe(
+		tag.split("/"),
+		Array.reduce([] as ReadonlyArray<Tag>, (tags, segment) =>
+			Array.append(
+				tags,
+				pipe(
+					Array.last(tags),
+					Option.map((last) => Tag.makeUnsafe(`${last}/${segment}`)),
+					Option.getOrElse(() => Tag.makeUnsafe(segment)),
+				),
+			),
+		),
+		Array.dropRight(1),
+	);
+};
+
 /**
  * @group Constructors
  */
@@ -39,77 +106,11 @@ export const build = (
 	ConfigResolver,
 	CyclicTagDependency | DuplicateTagDefinition | UnresolvedTagDependency
 > => {
-	const computeApplicableConfigs = (
-		targetDir: AbsolutePath,
-	): ReadonlyArray<RootConfig | EntrypointConfig> => {
-		return pipe(
-			workspace.entrypoints,
-			Array.filter(({ dir }) => targetDir.startsWith(dir)),
-			Array.flatMap(({ config }) => Array.fromOption(config)),
-			Array.prependAll(Array.fromOption(workspace.rootConfig)),
-		);
-	};
-
-	const findAllExplicitDeps = (
-		checks: ReadonlyArray<CheckStep>,
-	): ReadonlyArray<Tag> => {
-		return pipe(
-			checks,
-			Array.reduce([] as ReadonlyArray<Tag>, (acc, checkStep) =>
-				pipe(
-					acc,
-					Array.appendAll("tags" in checkStep ? checkStep.tags : []),
-					Array.appendAll(
-						"not" in checkStep ? findAllExplicitDeps([checkStep.not]) : [],
-					),
-					Array.appendAll(
-						"allOf" in checkStep ? findAllExplicitDeps(checkStep.allOf) : [],
-					),
-					Array.appendAll(
-						"anyOf" in checkStep ? findAllExplicitDeps(checkStep.anyOf) : [],
-					),
-					Array.appendAll(
-						"oneOf" in checkStep ? findAllExplicitDeps(checkStep.oneOf) : [],
-					),
-					Array.appendAll(
-						"noneOf" in checkStep ? findAllExplicitDeps(checkStep.noneOf) : [],
-					),
-					Array.appendAll(
-						"if" in checkStep
-							? findAllExplicitDeps([
-									checkStep.if,
-									checkStep.then,
-									...Array.fromNullishOr(checkStep.else),
-								])
-							: [],
-					),
-				),
-			),
-		);
-	};
-
-	const findAllImplicitDeps = (tag: Tag): ReadonlyArray<Tag> => {
-		return pipe(
-			tag.split("/"),
-			Array.reduce([] as ReadonlyArray<Tag>, (tags, segment) =>
-				Array.append(
-					tags,
-					pipe(
-						Array.last(tags),
-						Option.map((last) => Tag.makeUnsafe(`${last}/${segment}`)),
-						Option.getOrElse(() => Tag.makeUnsafe(segment)),
-					),
-				),
-			),
-			Array.dropRight(1),
-		);
-	};
-
-	const step1 = pipe(
+	const rawConfigGroups1 = pipe(
 		workspace.entrypoints,
 		Array.append({ dir: workspace.rootDir, config: workspace.rootConfig }),
 		Array.map(({ dir }) => {
-			const configs = computeApplicableConfigs(dir);
+			const configs = _computeApplicableConfigs(workspace, dir);
 			return {
 				dir,
 				configs,
@@ -119,9 +120,9 @@ export const build = (
 					Array.map((tagMap) =>
 						pipe(
 							tagMap,
-							Record.map(({ checks }) => findAllExplicitDeps(checks)),
+							Record.map(({ checks }) => _findAllExplicitDeps(checks)),
 							Record.map((deps, tag) =>
-								Array.appendAll(deps, findAllImplicitDeps(tag)),
+								Array.appendAll(deps, _findAllImplicitDeps(tag)),
 							),
 						),
 					),
@@ -130,7 +131,7 @@ export const build = (
 		}),
 	);
 
-	for (const { tagMaps } of step1) {
+	for (const { tagMaps } of rawConfigGroups1) {
 		const definedTags = new Set<Tag>();
 
 		for (const tag of Array.flatMap(tagMaps, Record.keys)) {
@@ -153,8 +154,8 @@ export const build = (
 		}
 	}
 
-	const step2 = pipe(
-		step1,
+	const rawConfigGroups2 = pipe(
+		rawConfigGroups1,
 		Array.map(({ dir, tagMaps, configs }) => {
 			const tagMap = Array.reduce(
 				tagMaps,
@@ -193,7 +194,7 @@ export const build = (
 		}),
 	);
 
-	for (const { graph } of step2) {
+	for (const { graph } of rawConfigGroups2) {
 		if (Graph.isAcyclic(graph)) continue;
 		return Result.fail(
 			new CyclicTagDependency({
@@ -206,36 +207,38 @@ export const build = (
 		);
 	}
 
-	return Result.succeed({
-		_tag: "ConfigResolver",
-		groups: pipe(
-			step2,
-			Array.map(({ graph, dir, configs }) => {
-				return {
-					_tag: "ConfigGroup",
-					rootDir: workspace.rootDir,
-					dir,
+	const configGroups = pipe(
+		rawConfigGroups2,
+		Array.map(({ graph, dir, configs }) => {
+			return identity<ConfigGroup>({
+				_tag: "ConfigGroup",
+				rootDir: workspace.rootDir,
+				dir,
+				configs,
+				tagMap: pipe(
 					configs,
-					tagMap: pipe(
-						configs,
-						Array.filterMap(Filter.fromPredicateOption(({ tags }) => tags)),
-						Array.reduce(
-							{} as Option.Option.Value<RootConfig["tags"]>,
-							(acc, tagMap) => Record.union(acc, tagMap, identity),
-						),
+					Array.filterMap(Filter.fromPredicateOption(({ tags }) => tags)),
+					Array.reduce(
+						{} as Option.Option.Value<RootConfig["tags"]>,
+						(acc, tagMap) => Record.union(acc, tagMap, identity),
 					),
-					tagOrder: pipe(
-						Graph.indices(Graph.topo(graph)),
-						Array.fromIterable,
-						Array.reverse,
-						Array.map((nodeIndex) =>
-							Option.getOrThrow(Graph.getNode(graph, nodeIndex)),
-						),
+				),
+				tagOrder: pipe(
+					Graph.indices(Graph.topo(graph)),
+					Array.fromIterable,
+					Array.reverse,
+					Array.map((nodeIndex) =>
+						Option.getOrThrow(Graph.getNode(graph, nodeIndex)),
 					),
-				} satisfies ConfigGroup;
-			}),
-			Array.sortWith(({ dir }) => dir, Order.flip(Order.String)),
-		),
+				),
+			});
+		}),
+		Array.sortWith(({ dir }) => dir, Order.flip(Order.String)),
+	);
+
+	return Result.succeed<ConfigResolver>({
+		_tag: "ConfigResolver",
+		groups: configGroups,
 	});
 };
 
