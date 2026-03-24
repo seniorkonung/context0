@@ -4,7 +4,7 @@ import cliui from "cliui";
 /**
  * @group Methods
  */
-export const div = (dsl: string) => {
+export const div = (dsl: string): string => {
 	const ui = cliui({
 		width: 120,
 	});
