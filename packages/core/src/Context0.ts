@@ -1,5 +1,6 @@
 import type * as Effect from "effect/Effect";
 import * as ServiceMap from "effect/ServiceMap";
+import type * as Stream from "effect/Stream";
 
 import { type Feedback } from "./Feedback.js";
 import {
@@ -110,10 +111,10 @@ export interface DescribeReturnType {
 /**
  * @group Types
  */
-export type ReviewReturnType = ReadonlyArray<{
+export interface ReviewReturnType {
 	readonly path: WorkspacePath | RelativePath;
 	readonly feedback: Feedback;
-}>;
+}
 
 /**
  * @group Types
@@ -165,7 +166,7 @@ export class Context0 extends ServiceMap.Service<
 		readonly check: (path: AbsolutePath) => Effect.Effect<CheckReturnType>;
 		readonly review: (
 			options?: ReviewOptions,
-		) => Effect.Effect<ReviewReturnType>;
+		) => Effect.Effect<Stream.Stream<ReviewReturnType>>;
 		readonly plan: (
 			options?: PlanOptions,
 		) => Effect.Effect<
