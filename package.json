@@ -8,8 +8,8 @@
 		],
 		"catalogs": {
 			"effect": {
-				"effect": "4.0.0-beta.35",
-				"@effect/platform-node": "4.0.0-beta.35"
+				"effect": "4.0.0-beta.37",
+				"@effect/platform-node": "4.0.0-beta.37"
 			},
 			"typescript": {
 				"typescript": "5.9.3",
