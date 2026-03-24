@@ -1,7 +1,7 @@
 {
 	"name": "@context0/cli",
 	"type": "module",
-	"version": "0.1.2",
+	"version": "0.1.1",
 	"license": "MIT",
 	"repository": {
 		"type": "git",

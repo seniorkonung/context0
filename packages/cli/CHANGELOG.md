@@ -1,11 +1,5 @@
 # @context0/cli
 
-## 0.1.2
-
-### Patch Changes
-
-- [`b608e8a`](https://github.com/seniorkonung/context0/commit/b608e8a3fb6ff7f5833d8113b8d312b9551e442e) Thanks [@seniorkonung](https://github.com/seniorkonung)! - Package publication is now via mise
-
 ## 0.1.1
 
 ### Patch Changes
