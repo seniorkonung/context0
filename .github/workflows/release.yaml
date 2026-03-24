@@ -27,7 +27,7 @@ jobs:
       - run: mise run prepare
       - uses: changesets/action@v1
         with:
-          publish: bun publish
+          publish: mise run publish
           createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.CHANGESET_GITHUB_TOKEN }} # noqa
