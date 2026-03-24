@@ -1,8 +1,13 @@
+import * as HashSet from "effect/HashSet";
 import * as Ref from "effect/Ref";
 import * as ServiceMap from "effect/ServiceMap";
 
 import { CONTEXT0_DEFAULT_CLI_AGENTS } from "./Constants.js";
-import { type CliAgent } from "./Models.js";
+import {
+	type CliAgent,
+	type RelativePath,
+	type WorkspacePath,
+} from "./Models.js";
 
 /**
  * @group References
@@ -16,6 +21,17 @@ export const OperationProgress = ServiceMap.Reference<{
 			current: Ref.makeUnsafe(0),
 			total: Ref.makeUnsafe(0),
 		};
+	},
+});
+
+/**
+ * @group References
+ */
+export const ActiveReviewFiles = ServiceMap.Reference<
+	Ref.Ref<HashSet.HashSet<WorkspacePath | RelativePath>>
+>("OperationProgress", {
+	defaultValue: () => {
+		return Ref.makeUnsafe(HashSet.empty<WorkspacePath | RelativePath>());
 	},
 });
 
