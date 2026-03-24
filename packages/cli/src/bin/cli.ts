@@ -9,11 +9,16 @@ import * as Command from "effect/unstable/cli/Command";
 
 import Package from "../../package.json" with { type: "json" };
 import { Context0Command } from "../Commands.js";
+import { LogUpdate } from "../LogUpdate.js";
 
 const main = Command.run(Context0Command, {
 	version: Package.version,
 }).pipe(
-	Effect.provide([Context0Provider.live, WorkspaceServiceProvider.live]),
+	Effect.provide([
+		LogUpdate.layer,
+		Context0Provider.live,
+		WorkspaceServiceProvider.live,
+	]),
 	Effect.provide([NodeServices.layer]),
 );
 
