@@ -21,6 +21,11 @@ export const FeedbackLevel = Schema.Literals(["red", "yellow", "green"])
 	});
 
 /**
+ * @group Models
+ */
+export type FeedbackLevel = typeof FeedbackLevel.Type;
+
+/**
  * @group Schemas
  */
 export const FeedbackSummary = Schema.String.check(
@@ -29,6 +34,11 @@ export const FeedbackSummary = Schema.String.check(
 ).annotate({
 	identifier: "FeedbackSummary",
 });
+
+/**
+ * @group Models
+ */
+export type FeedbackSummary = typeof FeedbackSummary.Type;
 
 /**
  * @group Models
