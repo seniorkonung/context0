@@ -20,7 +20,9 @@
 	"publishConfig": {
 		"access": "public"
 	},
-	"dependencies": {
+	"devDependencies": {
+		"@context0/typescript-config": "workspace:*",
+		"typescript": "catalog:typescript",
 		"@context0/core": "workspace:*",
 		"@effect/platform-node": "catalog:effect",
 		"ansi-escapes": "^7.3.0",
@@ -28,9 +30,5 @@
 		"cliui": "^9.0.1",
 		"effect": "catalog:effect",
 		"log-update": "^7.2.0"
-	},
-	"devDependencies": {
-		"@context0/typescript-config": "workspace:*",
-		"typescript": "catalog:typescript"
 	}
 }
