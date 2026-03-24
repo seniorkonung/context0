@@ -2,13 +2,24 @@
 	"name": "@context0/cli",
 	"type": "module",
 	"version": "0.0.0",
-	"private": true,
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/seniorkonung/context0.git",
+		"directory": "packages/cli"
+	},
+	"bugs": {
+		"url": "https://github.com/seniorkonung/context0/issues"
+	},
 	"bin": {
 		"context0": "./dist/cli.js"
 	},
 	"files": [
-		"dist"
+		"dist/cli.js"
 	],
+	"publishConfig": {
+		"access": "public"
+	},
 	"dependencies": {
 		"@context0/core": "workspace:*",
 		"@effect/platform-node": "catalog:effect",
