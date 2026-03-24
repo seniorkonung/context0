@@ -20,7 +20,7 @@ prepare = [
   "bun install",
 ]
 scratchpad = ["mise run //packages/...:build", "bun run ./scratchpad/index.ts"]
-publish = "mise run //...:publish"
+publish = "mise run //packages/...:publish"
 
 [tasks.precommit]
 depends = [":precommit-check"]
