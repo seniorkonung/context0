@@ -7,11 +7,11 @@ import * as Record from "effect/Record";
 import * as Result from "effect/Result";
 import * as Schema from "effect/Schema";
 import * as SchemaParser from "effect/SchemaParser";
+import { dump } from "js-yaml";
 
 import { LockInfoNotFound } from "./Errors.js";
 import { MarkdownAnnotations } from "./MarkdownAnnotations.js";
 import { RelativePath, Tag, WorkspacePath } from "./Models.js";
-import * as YamlSerializer from "./YamlSerializer.js";
 
 /**
  * @group Models
@@ -34,7 +34,7 @@ export class Lockfile extends Schema.Opaque<Lockfile>()(
  */
 export const toString = (lockfile: Lockfile): string => {
 	const obj = SchemaParser.encodeSync(Lockfile)(lockfile);
-	return YamlSerializer.serialize(obj);
+	return dump(obj);
 };
 
 /**

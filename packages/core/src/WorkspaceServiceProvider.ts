@@ -10,7 +10,7 @@ import type * as PlatformError from "effect/PlatformError";
 import * as SchemaIssue from "effect/SchemaIssue";
 import * as SchemaParser from "effect/SchemaParser";
 import { glob } from "fast-glob";
-import { load } from "js-yaml";
+import { load as parseYaml } from "js-yaml";
 
 import {
 	CONTEXT0_CONFIG_FILE_NAME,
@@ -69,7 +69,7 @@ const _makeDiscover = Effect.gen(function* () {
 		const rootConfig = yield* fs
 			.readFileString(path.resolve(rootDir, CONTEXT0_CONFIG_FILE_NAME))
 			.pipe(
-				Effect.andThen((content) => Effect.sync(() => load(content))),
+				Effect.andThen((content) => Effect.sync(() => parseYaml(content))),
 				Effect.andThen(SchemaParser.decodeUnknownEffect(RootConfig)),
 				Effect.catchIf(SchemaIssue.isIssue, (reason) =>
 					new InvalidRootConfig({
@@ -110,7 +110,9 @@ const _makeDiscover = Effect.gen(function* () {
 						return {
 							dir: dirPath,
 							config: yield* fs.readFileString(configPath).pipe(
-								Effect.andThen((content) => Effect.sync(() => load(content))),
+								Effect.andThen((content) =>
+									Effect.sync(() => parseYaml(content)),
+								),
 								Effect.andThen(
 									SchemaParser.decodeUnknownEffect(EntrypointConfig),
 								),
@@ -130,7 +132,7 @@ const _makeDiscover = Effect.gen(function* () {
 		const lockfile = yield* fs
 			.readFileString(path.resolve(rootDir, CONTEXT0_LOCK_FILE_NAME))
 			.pipe(
-				Effect.andThen((content) => Effect.sync(() => load(content))),
+				Effect.andThen((content) => Effect.sync(() => parseYaml(content))),
 				Effect.andThen(SchemaParser.decodeUnknownEffect(Lockfile)),
 				Effect.catchIf(SchemaIssue.isIssue, (reason) =>
 					new InvalidLockfile({
