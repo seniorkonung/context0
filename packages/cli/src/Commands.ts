@@ -3,15 +3,11 @@ import type * as Feedback from "@context0/core/Feedback";
 import * as Models from "@context0/core/Models";
 import * as References from "@context0/core/References";
 import * as WorkspaceService from "@context0/core/WorkspaceService";
-import ansi from "ansi-escapes";
-import chalk from "chalk";
-import { Record } from "effect";
 import * as Array from "effect/Array";
 import * as DateTime from "effect/DateTime";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import { pipe } from "effect/Function";
-import * as Match from "effect/Match";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Ref from "effect/Ref";
@@ -19,13 +15,11 @@ import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as String from "effect/String";
-import * as Terminal from "effect/Terminal";
 import * as Argument from "effect/unstable/cli/Argument";
 import * as Command from "effect/unstable/cli/Command";
 import * as Flag from "effect/unstable/cli/Flag";
 
 import { QueryArgument } from "./Arguments.js";
-import * as CliUi from "./CliUi.js";
 import { IS_INTERACTIVE_TERMINAL, SPINNER_FRAMES } from "./Constants.js";
 import {
 	DirFlag,
@@ -74,16 +68,12 @@ export const SyncCommand = Command.make(
 		tags,
 		quiet,
 	}) {
-		const terminal = yield* Terminal.Terminal;
 		const context0 = yield* Context0.Context0;
 		const operationProgress = yield* References.OperationProgress;
+		const logUpdate = yield* LogUpdate;
 
 		const showProgress =
 			!quiet && (progress || (!noProgress && IS_INTERACTIVE_TERMINAL));
-		yield* Effect.acquireRelease(terminal.display(ansi.cursorHide), () =>
-			terminal.display(ansi.cursorShow).pipe(Effect.orDie),
-		).pipe(Effect.when(Effect.succeed(showProgress)));
-
 		const isSyncingRef = yield* Ref.make(true);
 		const startTime = yield* DateTime.now;
 
@@ -106,14 +96,12 @@ export const SyncCommand = Command.make(
 					const total = yield* Ref.get(operationProgress.total).pipe(
 						Effect.map(String.String),
 					);
-					const delimiter = Formatter.secondary("/");
-					yield* pipe(
-						ansi.eraseLine,
-						String.concat(ansi.cursorLeft),
-						String.concat(
-							`${Formatter.icon(icon)} ${Formatter.title(current)}${delimiter}${Formatter.secondary(total)}`,
-						),
-						terminal.display,
+					yield* logUpdate.update(
+						Formatter.syncProgress({
+							icon,
+							current,
+							total,
+						}),
 					);
 				}).pipe(
 					Effect.repeat(
@@ -139,26 +127,20 @@ export const SyncCommand = Command.make(
 
 					if (showProgress) {
 						if (exit._tag === "Failure") {
-							return yield* pipe(
-								ansi.eraseLine,
-								String.concat(ansi.cursorLeft),
-								terminal.display,
-							);
+							return yield* logUpdate.clear();
 						} else {
-							return yield* pipe(
-								ansi.eraseLine,
-								String.concat(ansi.cursorLeft),
-								String.concat(
-									`${Formatter.icon("✔")} Successfully synced ${Formatter.title(current)} files (${time}s)\n`,
-								),
-								terminal.display,
+							return yield* logUpdate.persist(
+								Formatter.syncSuccess({
+									current,
+									time,
+								}),
 							);
 						}
 					}
 
 					if (!quiet && exit._tag === "Success") {
-						yield* terminal.display(
-							`${Formatter.icon("✔")} Successfully synced ${Formatter.title(current)} files (${time}s)\n`,
+						return yield* logUpdate.persist(
+							Formatter.syncSuccess({ current, time }),
 						);
 					}
 				}),
@@ -178,20 +160,18 @@ export const SearchCommand = Command.make(
 		dir: DirFlag,
 	},
 	Effect.fn("SearchCommand")(function* ({ query, json, dir }) {
-		const terminal = yield* Terminal.Terminal;
+		const logUpdate = yield* LogUpdate;
 		const context0 = yield* Context0.Context0;
 		const files = yield* context0.search(query, {
 			dir,
 		});
 
 		if (json) {
-			yield* terminal.display(JSON.stringify(files, null, " "));
-			yield* terminal.display("\n");
+			yield* logUpdate.persist(Formatter.json(files));
 			return;
 		}
 
-		yield* terminal.display(Formatter.table1(files));
-		yield* terminal.display("\n");
+		yield* logUpdate.persist(Formatter.search(files));
 	}),
 );
 
@@ -205,48 +185,27 @@ export const DescribeCommand = Command.make(
 		json: JsonFlag,
 	},
 	Effect.fn("DescribeCommand")(function* ({ json, file }) {
-		const terminal = yield* Terminal.Terminal;
+		const logUpdate = yield* LogUpdate;
 		const context0 = yield* Context0.Context0;
 		const result = yield* context0.describe(
 			Models.AbsolutePath.makeUnsafe(file),
 		);
 
 		if (json) {
-			yield* terminal.display(JSON.stringify(result, null, " "));
-			yield* terminal.display("\n");
+			yield* logUpdate.persist(Formatter.json(result));
 			return;
 		}
 
-		const tagsOutput = pipe(
-			"",
-			String.concat(Formatter.title("TAGS\n")),
-			String.concat(
-				pipe(
-					result.tags,
-					Array.map(({ name, description }) => [name, description] as const),
-					Formatter.table2,
+		yield* logUpdate.persist(
+			Formatter.describe({
+				tags: result.tags.map(
+					({ name, description }) => [name, description] as [string, string],
 				),
-			),
-			CliUi.div,
-		);
-
-		const contextOutput = pipe(
-			"",
-			String.concat(Formatter.title("CONTEXT\n")),
-			String.concat(
-				pipe(
-					result.context,
-					Array.map(({ path, description }) => [path, description] as const),
-					Formatter.table2,
+				context: result.context.map(
+					({ path, description }) => [path, description] as [string, string],
 				),
-			),
-			CliUi.div,
+			}),
 		);
-
-		yield* terminal.display(tagsOutput);
-		yield* terminal.display("\n\n");
-		yield* terminal.display(contextOutput);
-		yield* terminal.display("\n");
 	}),
 );
 
@@ -329,8 +288,8 @@ export const ReviewCommand = Command.make(
 		noProgress,
 		short,
 	}) {
+		const logUpdate = yield* LogUpdate;
 		const pathService = yield* Path.Path;
-		const terminal = yield* Terminal.Terminal;
 		const context0 = yield* Context0.Context0;
 
 		if (plan) {
@@ -342,94 +301,43 @@ export const ReviewCommand = Command.make(
 			});
 
 			if (json) {
-				yield* terminal.display(JSON.stringify(plan, null, " "));
-				yield* terminal.display("\n");
+				yield* logUpdate.persist(Formatter.json(plan));
 				return;
 			}
 
-			const pendingOutput = pipe(
-				"",
-				String.concat(
-					pipe(
-						plan.pending,
-						Array.map(
-							({ contextFiles, path }) =>
-								[
-									`○ ${path}`,
-									contextFiles
-										.map((file) => pathService.basename(file))
-										.join(","),
-								] as const,
+			const planOutput = Formatter.reviewPlan({
+				pending: plan.pending.map(({ contextFiles, path }) => ({
+					path,
+					contextFiles: contextFiles.map((file) => pathService.basename(file)),
+				})),
+				reviewedWithoutFeedback: plan.reviewedWithoutFeedback.map(
+					({ contextFiles, path }) => ({
+						path,
+						contextFiles: contextFiles.map((file) =>
+							pathService.basename(file),
 						),
-						Formatter.table2,
-					),
+					}),
 				),
-				CliUi.div,
-			);
-
-			const reviewedWithoutFeedbackOutput = pipe(
-				"",
-				String.concat(
-					pipe(
-						plan.reviewedWithoutFeedback,
-						Array.map(
-							({ contextFiles, path }) =>
-								[
-									`✓ ${path}`,
-									contextFiles
-										.map((file) => pathService.basename(file))
-										.join(","),
-								] as const,
+				reviewedWithFeedback: plan.reviewedWithFeedback.map(
+					({ contextFiles, path }) => ({
+						path,
+						contextFiles: contextFiles.map((file) =>
+							pathService.basename(file),
 						),
-						Formatter.table2,
-					),
+					}),
 				),
-				CliUi.div,
-			);
+			});
 
-			const reviewedWithFeedbackOutput = pipe(
-				"",
-				String.concat(
-					pipe(
-						plan.reviewedWithFeedback,
-						Array.map(
-							({ contextFiles, path }) =>
-								[
-									`● ${path}`,
-									contextFiles
-										.map((file) => pathService.basename(file))
-										.join(","),
-								] as const,
-						),
-						Formatter.table2,
-					),
-				),
-				CliUi.div,
-			);
-
-			if (pendingOutput.length) {
-				yield* terminal.display(pendingOutput);
-				yield* terminal.display("\n");
-			}
-			if (reviewedWithoutFeedbackOutput.length) {
-				yield* terminal.display(reviewedWithoutFeedbackOutput);
-				yield* terminal.display("\n");
-			}
-			if (reviewedWithFeedbackOutput.length) {
-				yield* terminal.display(reviewedWithFeedbackOutput);
-				yield* terminal.display("\n");
+			if (planOutput.length) {
+				yield* logUpdate.persist(planOutput);
 			}
 			return;
 		}
 
 		const operationProgress = yield* References.OperationProgress;
 		const activeReviewFiles = yield* References.ActiveReviewFiles;
-		const logUpdate = yield* LogUpdate;
 
 		const showProgress = progress || (!noProgress && IS_INTERACTIVE_TERMINAL);
-		yield* Effect.acquireRelease(terminal.display(ansi.cursorHide), () =>
-			terminal.display(ansi.cursorShow).pipe(Effect.orDie),
-		).pipe(Effect.when(Effect.succeed(showProgress)));
 
 		const isReviewingRef = yield* Ref.make(true);
 		const counters = {
@@ -463,91 +371,33 @@ export const ReviewCommand = Command.make(
 					),
 					Stream.tap(
 						Effect.fnUntraced(function* ({ path, feedback }) {
-							const feedbackByContextFile = pipe(
-								feedback,
-								Array.map(({ contextFile, level, summary, text }) => {
-									return {
-										contextFile: Option.getOrElse(
-											contextFile,
-											() => "<unknown>",
-										),
-										level: Option.getOrElse(level, () => "unknown" as const),
-										summary: Option.getOrElse(summary, () => "<unknown>"),
-										text,
-									};
+							const normalizedFeedback = feedback.map(
+								({ contextFile, level, summary, text }) => ({
+									contextFile: Option.getOrElse(contextFile, () => "<unknown>"),
+									level: Option.getOrElse(level, () => "unknown" as const),
+									summary: Option.getOrElse(summary, () => "<unknown>"),
+									text,
 								}),
-								Array.groupBy(({ contextFile }) => contextFile),
-								Record.map(
-									Array.map(({ level, summary, text }, i) => {
-										const isLastItem = feedback.length - 1 === i;
-										const branch = isLastItem ? "└──" : "├──";
-										const prettySummary = chalk.redBright(summary);
-										const summaryOutput = Match.value({ level }).pipe(
-											Match.discriminators("level")({
-												unknown: () =>
-													Formatter.warning(`    ${branch} ? ${prettySummary}`),
-												red: () =>
-													Formatter.error(`    ${branch} ✗ ${prettySummary}`),
-												green: () =>
-													Formatter.warning(`    ${branch} ⚠ ${prettySummary}`),
-												yellow: () =>
-													Formatter.element(`    ${branch} ✔ ${prettySummary}`),
-											}),
-											Match.exhaustive,
-										);
-
-										if (short) {
-											return { level, output: summaryOutput };
-										}
-
-										const textOutput = pipe(
-											"        ",
-											String.concat(text),
-											String.replaceAll("\n", "\n        "),
-											CliUi.div,
-										);
-										return { level, output: `${summaryOutput}\n${textOutput}` };
-									}),
-								),
 							);
 
-							const feedbackOutput = pipe(
-								Record.toEntries(feedbackByContextFile),
-								Array.map(([contextFile, feedback], i) => {
-									const isLastItem = feedback.length - 1 === i;
-									const branch = isLastItem ? "└──" : "├──";
-									const prettyContextFile = chalk.cyan(contextFile);
-									return pipe(
-										_matchFeedbackLevel(feedback, {
-											unknown: () =>
-												Formatter.warning(`${branch} ? ${prettyContextFile}`),
-											red: () =>
-												Formatter.error(`${branch} ✗ ${prettyContextFile}`),
-											yellow: () =>
-												Formatter.warning(`${branch} ⚠ ${prettyContextFile}`),
-											green: () =>
-												Formatter.element(`${branch} ✔ ${prettyContextFile}`),
-										}),
-										String.concat("\n"),
-										String.concat(
-											feedback.map(({ output }) => output).join("\n"),
-										),
-									);
-								}),
-								Array.join("\n"),
-							);
+							const lineLevel = _matchFeedbackLevel(normalizedFeedback, {
+								red: () => "red" as const,
+								yellow: () => "yellow" as const,
+								green: () => "green" as const,
+								unknown: () => "unknown" as const,
+							});
 
 							yield* logUpdate.persist(
-								_matchFeedbackLevel(feedback, {
-									red: () => Formatter.error(`✗ ${path}`),
-									yellow: () => Formatter.warning(`⚠ ${path}`),
-									green: () => Formatter.element(`✔ ${path}`),
-									unknown: () => Formatter.warning(`? ${path}`),
-								}),
+								Formatter.reviewPathLine({ path, level: lineLevel }),
 							);
 
+							const feedbackOutput = Formatter.reviewFeedbackDetails({
+								feedback: normalizedFeedback,
+								short,
+							});
+
 							if (feedbackOutput) {
-								yield* logUpdate.persist(`${feedbackOutput}`);
+								yield* logUpdate.persist(feedbackOutput);
 							}
 						}),
 					),
@@ -571,49 +421,18 @@ export const ReviewCommand = Command.make(
 					const time = Formatter.duration(
 						DateTime.distance(startTime, yield* DateTime.now),
 					);
-					const delimiter = Formatter.secondary("/");
 					yield* logUpdate.update(
-						pipe(
-							"\n",
-							String.concat(
-								pipe(
-									reviewFiles,
-									Array.map((file) =>
-										pipe(
-											"",
-											String.concat(
-												`${Formatter.icon(icon)} ${chalk.dim(file)}`,
-											),
-											CliUi.div,
-										),
-									),
-									Array.join("\n"),
-								),
-							),
-							String.concat("\n\n"),
-							String.concat(
-								pipe(
-									"",
-									String.concat(
-										`${Formatter.icon(icon)} ${Formatter.text(current)}${delimiter}${Formatter.secondary(total)} (${time})`,
-									),
-									String.concat(
-										`\n${Formatter.element(`✔ ${yield* Ref.get(counters.passed)} passed`)}`,
-									),
-									String.concat(
-										` ${Formatter.error(`✗ ${yield* Ref.get(counters.errors)} errors`)}`,
-									),
-									String.concat(
-										` ${Formatter.warning(`⚠ ${yield* Ref.get(counters.warnings)} warnings`)}`,
-									),
-									String.concat(
-										(yield* Ref.get(counters.unknowns)) > 0
-											? ` ${Formatter.warning(`(${yield* Ref.get(counters.unknowns)} unknowns)`)}`
-											: "",
-									),
-								),
-							),
-						),
+						Formatter.reviewProgress({
+							icon,
+							current,
+							total,
+							time,
+							reviewFiles,
+							passed: yield* Ref.get(counters.passed),
+							errors: yield* Ref.get(counters.errors),
+							warnings: yield* Ref.get(counters.warnings),
+							unknowns: yield* Ref.get(counters.unknowns),
+						}),
 					);
 				}).pipe(
 					Effect.repeat(
@@ -641,33 +460,15 @@ export const ReviewCommand = Command.make(
 					}
 
 					if (exit._tag === "Success") {
-						yield* pipe(
-							"",
-							String.concat(
-								pipe(
-									"",
-									String.concat(
-										Formatter.title(
-											`\n${Formatter.title(current)} files (${time}) `,
-										),
-									),
-									String.concat(
-										`${Formatter.element(`✔ ${yield* Ref.get(counters.passed)} passed`)}`,
-									),
-									String.concat(
-										` ${Formatter.error(`✗ ${yield* Ref.get(counters.errors)} errors`)}`,
-									),
-									String.concat(
-										` ${Formatter.warning(`⚠ ${yield* Ref.get(counters.warnings)} warnings`)}`,
-									),
-									String.concat(
-										(yield* Ref.get(counters.unknowns)) > 0
-											? ` ${Formatter.warning(`(${yield* Ref.get(counters.unknowns)} unknowns)`)}`
-											: "",
-									),
-								),
-							),
-							logUpdate.persist,
+						yield* logUpdate.persist(
+							Formatter.reviewFinalSummary({
+								current,
+								time,
+								passed: yield* Ref.get(counters.passed),
+								errors: yield* Ref.get(counters.errors),
+								warnings: yield* Ref.get(counters.warnings),
+								unknowns: yield* Ref.get(counters.unknowns),
+							}),
 						);
 					}
 				}),
