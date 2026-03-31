@@ -33,7 +33,7 @@ export type RelativePath = Schema.Schema.Type<typeof RelativePath>;
  * @group Schemas
  */
 export const AbsolutePath = Schema.String.pipe(
-	Schema.check(Schema.isPattern(/^\/[^/]/)),
+	Schema.check(Schema.isPattern(/^\/[^/]?/)),
 	Schema.brand("AbsolutePath"),
 ).annotate({
 	identifier: "AbsolutePath",
