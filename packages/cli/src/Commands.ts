@@ -60,6 +60,7 @@ export const SyncCommand = Command.make(
 		dir,
 		tags,
 		quiet,
+		file,
 	}) {
 		const context0 = yield* Context0.Context0;
 		const operationProgress = yield* References.OperationProgress;
@@ -76,6 +77,7 @@ export const SyncCommand = Command.make(
 					.sync({
 						dir,
 						tags: tags,
+						file,
 					})
 					.pipe(Effect.onExit(() => Ref.set(isSyncingRef, false))),
 				Effect.gen(function* () {

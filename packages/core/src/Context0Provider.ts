@@ -18,6 +18,7 @@ import * as CheckRunnerProvider from "./CheckRunnerProvider.js";
 import * as ConfigResolver from "./ConfigResolver.js";
 import * as Constants from "./Constants.js";
 import * as Context0 from "./Context0.js";
+import { FileNotInDirectory } from "./Errors.js";
 import * as FileFilter from "./FileFilter.js";
 import * as Lockfile from "./Lockfile.js";
 import * as MarkdownAnnotations from "./MarkdownAnnotations.js";
@@ -52,18 +53,28 @@ const _makeSync = Effect.gen(function* () {
 		const configResolver = yield* ConfigResolver.build(workspace);
 
 		const cwd = options.dir ?? workspace.rootDir;
-		const files = yield* Effect.promise(() =>
-			glob("**", {
-				onlyFiles: true,
-				cwd,
-				dot: true,
-				ignore: [
-					...Option.flatMap(workspace.rootConfig, ({ ignore }) => ignore).pipe(
-						Option.getOrElse(() => []),
-					),
-				],
-			}),
-		);
+		if (options.file && !options.file.startsWith(cwd)) {
+			return yield* new FileNotInDirectory({
+				dir: cwd,
+				file: options.file,
+			});
+		}
+
+		const files = options.file
+			? [options.file.replace(withTrailingSlash(cwd), "")]
+			: yield* Effect.promise(() =>
+					glob("**", {
+						onlyFiles: true,
+						cwd,
+						dot: true,
+						ignore: [
+							...Option.flatMap(
+								workspace.rootConfig,
+								({ ignore }) => ignore,
+							).pipe(Option.getOrElse(() => [])),
+						],
+					}),
+				);
 
 		yield* Ref.set(operationProgress.total, files.length);
 
@@ -236,10 +247,7 @@ const _makeSearch = Effect.gen(function* () {
 
 const _makeDescribe = Effect.gen(function* () {
 	const { discover } = yield* WorkspaceService;
-	return Effect.fn("describe")(function* (
-		file: AbsolutePath,
-		options: Context0.DescribeOptions | undefined,
-	) {
+	return Effect.fn("describe")(function* (file: AbsolutePath) {
 		const workspace = yield* discover();
 		const workspacePath = WorkspacePath.makeUnsafe(
 			file.replace(workspace.rootDir, "/"),
@@ -256,7 +264,6 @@ const _makeDescribe = Effect.gen(function* () {
 		const contextFiles = yield* Lockfile.fileContext(
 			workspace.lockfile,
 			workspacePath,
-			options?.scope ?? "all",
 		);
 
 		return identity<Context0.DescribeReturnType>({
@@ -282,10 +289,6 @@ const _makeDescribe = Effect.gen(function* () {
 				);
 				return {
 					path: contextFile,
-					scope: annotations.pipe(
-						Option.map(({ scope }) => scope),
-						Option.getOrElse(() => "all" as const),
-					),
 					description: annotations.pipe(
 						Option.flatMap(({ description }) => description),
 						Option.getOrElse(() => ""),

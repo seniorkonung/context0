@@ -10,7 +10,7 @@ import * as SchemaParser from "effect/SchemaParser";
 
 import { LockInfoNotFound } from "./Errors.js";
 import { MarkdownAnnotations } from "./MarkdownAnnotations.js";
-import { RelativePath, type Scope, Tag, WorkspacePath } from "./Models.js";
+import { RelativePath, Tag, WorkspacePath } from "./Models.js";
 import * as YamlSerializer from "./YamlSerializer.js";
 
 /**
@@ -56,7 +56,6 @@ export const fileInfo = (
 export const fileContext = (
 	lockfile: Lockfile,
 	file: WorkspacePath,
-	targetScope: Scope,
 ): Result.Result<ReadonlyArray<WorkspacePath>, LockInfoNotFound> => {
 	const lockinfo = fileInfo(lockfile, file);
 	if (lockinfo._tag === "Failure") return Result.fail(lockinfo.failure);
@@ -67,13 +66,6 @@ export const fileContext = (
 		Array.filterMap(
 			Filter.fromPredicateOption(([file, { annotations }]) => {
 				if (annotations._tag === "None") return Option.none();
-				if (
-					annotations.value.scope !== "all" &&
-					targetScope !== "all" &&
-					!annotations.value.scope.some((scope) => targetScope.includes(scope))
-				) {
-					return Option.none();
-				}
 				return pipe(
 					annotations.value.tags.every((tag) => tags.includes(tag)),
 					Boolean.or(Array.isReadonlyArrayEmpty(annotations.value.tags)),

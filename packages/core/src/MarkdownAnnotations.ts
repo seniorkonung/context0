@@ -16,7 +16,6 @@ import * as Frontmatter from "./Frontmatter.js";
 import {
 	type ConfigGroup,
 	Pattern,
-	Scope,
 	Tag,
 	type WorkspacePath,
 } from "./Models.js";
@@ -37,7 +36,6 @@ export class MarkdownAnnotations extends Schema.Class<MarkdownAnnotations>(
 		depends: Schema.Array(Tag).pipe(Schema.OptionFromOptionalKey),
 		groupBy: Schema.Array(Pattern).pipe(Schema.OptionFromOptionalKey),
 		description: Schema.String.pipe(Schema.OptionFromOptionalKey),
-		scope: Scope,
 		tags: Schema.Array(Tag),
 	}).annotate({ identifier: "MarkdownAnnotations" }),
 ) {}
@@ -66,7 +64,6 @@ export const fromMarkdown = (
 						depends: Option.none(),
 						description: Option.none(),
 						groupBy: Option.none(),
-						scope: "all",
 						tags: [],
 					}),
 				),

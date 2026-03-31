@@ -107,3 +107,11 @@ export class InvalidFileQuery extends Data.TaggedError("InvalidFileQuery")<{
  */
 // biome-ignore lint/complexity/noBannedTypes: Никаких методанных не требуется
 export class ShellNotFound extends Data.TaggedError("ShellNotFound")<{}> {}
+
+/**
+ * @group Errors
+ */
+export class FileNotInDirectory extends Data.TaggedError("FileNotInDirectory")<{
+	readonly file: AbsolutePath;
+	readonly dir: AbsolutePath;
+}> {}

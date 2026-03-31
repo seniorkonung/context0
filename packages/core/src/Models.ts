@@ -87,21 +87,6 @@ export type FileQuery = typeof FileQuery.Type;
 /**
  * @group Schemas
  */
-export const Scope = Schema.Union([
-	Schema.Literal("all"),
-	Schema.Array(
-		Schema.Literals(["write", "read", "create", "delete", "review"]),
-	),
-]).annotate({ identifier: "Scope" });
-
-/**
- * @group Models
- */
-export type Scope = typeof Scope.Type;
-
-/**
- * @group Schemas
- */
 export const Command = Schema.Union([
 	Schema.NonEmptyString,
 	Schema.Struct({

@@ -5,7 +5,6 @@ import {
 	type AbsolutePath,
 	type FileQuery,
 	type RelativePath,
-	type Scope,
 	type Tag,
 	type WorkspacePath,
 } from "./Models.js";
@@ -23,21 +22,15 @@ export interface SearchOptions {
 /**
  * @group Options
  */
-export interface DescribeOptions {
-	/**
-	 * @default 'all'
-	 */
-	readonly scope?: Scope | undefined;
-}
-
-/**
- * @group Options
- */
 export interface SyncOptions {
 	/**
 	 * @default workspace.rootDir
 	 */
 	readonly dir?: AbsolutePath | undefined;
+	/**
+	 * @default undefined
+	 */
+	readonly file?: AbsolutePath | undefined;
 	/**
 	 * @default - Все возможные теги
 	 */
@@ -54,7 +47,6 @@ export interface DescribeReturnType {
 	}>;
 	readonly context: ReadonlyArray<{
 		readonly path: WorkspacePath;
-		readonly scope: Scope;
 		readonly description: string;
 	}>;
 }
@@ -73,7 +65,6 @@ export class Context0 extends ServiceMap.Service<
 		>;
 		readonly describe: (
 			file: AbsolutePath,
-			options?: DescribeOptions,
 		) => Effect.Effect<DescribeReturnType>;
 		readonly sync: (options?: SyncOptions) => Effect.Effect<void>;
 	}
