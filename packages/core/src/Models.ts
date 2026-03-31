@@ -1,11 +1,6 @@
-import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
+import type * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import * as SchemaGetter from "effect/SchemaGetter";
-import * as SchemaIssue from "effect/SchemaIssue";
 import * as Struct from "effect/Struct";
-
-import { startsWithUnescaped } from "./Utils.js";
 
 /**
  * @group Schemas
@@ -89,62 +84,6 @@ export const CliAgent = Schema.Literals(["claude"])
  * @group Models
  */
 export type CliAgent = Schema.Schema.Type<typeof CliAgent>;
-
-/**
- * @group Models
- * @group Schemas
- */
-export class RequiredTag extends Schema.Class<RequiredTag>("RequiredTag")(
-	Schema.Struct({
-		_tag: Schema.Literal("RequiredTag"),
-		name: Tag,
-	}).annotate({ identifier: "RequiredTag" }),
-) {}
-
-/**
- * @group Schemas
- */
-export const RequiredTagFromString = RequiredTag.pipe(
-	Schema.encodeTo(Schema.String, {
-		decode: SchemaGetter.transformOrFail((name) => {
-			return startsWithUnescaped(name, "!")
-				? Effect.fail(new SchemaIssue.InvalidValue(Option.some(name)))
-				: Effect.succeed({
-						_tag: "RequiredTag" as const,
-						name,
-					});
-		}),
-		encode: SchemaGetter.transform(({ name }) => name),
-	}),
-).annotate({ identifier: "RequiredTagFromString" });
-
-/**
- * @group Models
- * @group Schemas
- */
-export class ProhibitedTag extends Schema.Class<ProhibitedTag>("ProhibitedTag")(
-	Schema.Struct({
-		_tag: Schema.Literal("ProhibitedTag"),
-		name: Tag,
-	}).annotate({ identifier: "ProhibitedTag" }),
-) {}
-
-/**
- * @group Schemas
- */
-export const ProhibitedTagFromString = ProhibitedTag.pipe(
-	Schema.encodeTo(Schema.String, {
-		decode: SchemaGetter.transformOrFail((name) => {
-			return startsWithUnescaped(name, "!")
-				? Effect.succeed({
-						_tag: "ProhibitedTag" as const,
-						name,
-					})
-				: Effect.fail(new SchemaIssue.InvalidValue(Option.some(name)));
-		}),
-		encode: SchemaGetter.transform(({ name }) => name),
-	}),
-).annotate({ identifier: "ProhibitedTagFromString" });
 
 /**
  * @group Schemas
@@ -307,12 +246,6 @@ export class RootConfig extends Schema.Class<RootConfig>("RootConfig")(
 				encodingStrategy: "omit",
 			}),
 		),
-		// constraints: Schema.Record(
-		// 	Pattern,
-		// 	Schema.Array(
-		// 		Schema.Union([ProhibitedTagFromString, RequiredTagFromString]),
-		// 	),
-		// ).pipe(Schema.OptionFromOptionalKey),
 		entrypoints: Schema.Array(Pattern).pipe(Schema.OptionFromOptionalKey),
 		tags: Schema.Record(
 			Tag,
