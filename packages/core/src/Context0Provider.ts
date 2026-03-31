@@ -175,17 +175,9 @@ const _makeSync = Effect.gen(function* () {
 		yield* fs.writeFileString(
 			path.resolve(workspace.rootDir, Constants.CONTEXT0_LOCK_FILE_NAME),
 			Lockfile.toString(
-				workspace.rootDir === cwd
+				workspace.rootDir === cwd && !options.file
 					? newLockfile
-					: Record.union(
-							newLockfile,
-							Record.filter(
-								workspace.lockfile,
-								(_, key) =>
-									!path.resolve(workspace.rootDir, key).startsWith(cwd),
-							),
-							identity,
-						),
+					: Record.union(newLockfile, workspace.lockfile, identity),
 			),
 		);
 	});
