@@ -9,237 +9,30 @@ import * as Path from "effect/Path";
 import * as Record from "effect/Record";
 import * as Ref from "effect/Ref";
 import * as Result from "effect/Result";
-import * as SchemaParser from "effect/SchemaParser";
 import * as Stream from "effect/Stream";
-import * as String from "effect/String";
-import * as KeyValueStore from "effect/unstable/persistence/KeyValueStore";
 import { glob } from "fast-glob";
-import { load } from "js-yaml";
 import picomatch from "picomatch";
 
 import { CheckRunner } from "./CheckRunner.js";
 import * as CheckRunnerProvider from "./CheckRunnerProvider.js";
-import { CliAgentClient } from "./CliAgentClient.js";
-import * as CliAgentClientProvider from "./CliAgentClientProvider.js";
 import * as ConfigResolver from "./ConfigResolver.js";
 import * as Constants from "./Constants.js";
 import * as Context0 from "./Context0.js";
-import { FileNotInDirectory } from "./Errors.js";
-import * as Feedback from "./Feedback.js";
 import * as FileFilter from "./FileFilter.js";
-import { FileHasher } from "./FileHasher.js";
-import * as FileHasherProvider from "./FileHasherProvider.js";
 import * as Lockfile from "./Lockfile.js";
 import * as MarkdownAnnotations from "./MarkdownAnnotations.js";
 import {
 	AbsolutePath,
 	FileQuery,
 	RelativePath,
-	type Scope,
 	type Tag,
 	WorkspacePath,
 } from "./Models.js";
-import {
-	ActiveReviewFiles,
-	CliAgents,
-	OperationProgress,
-} from "./References.js";
+import { OperationProgress } from "./References.js";
 import { withTrailingSlash } from "./Utils.js";
 import * as Workspace from "./Workspace.js";
 import { WorkspaceService } from "./WorkspaceService.js";
 import * as WorkspaceServiceProvider from "./WorkspaceServiceProvider.js";
-import * as YamlSerializer from "./YamlSerializer.js";
-
-const _reviewScope: Scope = ["review"];
-
-const _makePlan = Effect.gen(function* () {
-	const fileHasher = yield* FileHasher;
-	const fs = yield* FileSystem.FileSystem;
-	const path = yield* Path.Path;
-	return (workspace: Workspace.Workspace) =>
-		Effect.fn("plan")(function* (options: Context0.PlanOptions | undefined) {
-			if (options?.dir && options?.file) {
-				if (!options.file.startsWith(withTrailingSlash(options.dir))) {
-					return yield* new FileNotInDirectory({
-						dir: options.dir,
-						file: options.file,
-					});
-				}
-			}
-
-			const cache = yield* pipe(
-				KeyValueStore.KeyValueStore.asEffect(),
-				Effect.provide(KeyValueStore.layerFileSystem(workspace.cacheDir)),
-				Effect.provideService(Path.Path, path),
-				Effect.provideService(FileSystem.FileSystem, fs),
-			);
-
-			const fileFilter = yield* Option.match(
-				Option.fromNullishOr(options?.query),
-				{
-					onSome: (query) =>
-						pipe(
-							FileFilter.parse(FileQuery.makeUnsafe(query)),
-							Result.map(Option.some),
-						),
-					onNone: () => Result.succeedNone,
-				},
-			);
-
-			const relativeDir = pipe(
-				Option.fromNullishOr(options?.dir),
-				Option.map((dir) => Workspace.relativeDir(workspace, dir)),
-				Option.getOrUndefined,
-			);
-
-			const filteredFilesStream = pipe(
-				Stream.fromIterable(Record.toEntries(workspace.lockfile)),
-				Stream.filterMap(([file, lockinfo]) => {
-					const absolutePath = AbsolutePath.makeUnsafe(
-						path.resolve(workspace.rootDir, file),
-					);
-					const workspacePath = WorkspacePath.makeUnsafe(`//${file}`);
-
-					if (options?.file) {
-						if (absolutePath === options.file) {
-							return Result.succeed({
-								workspacePath,
-								file:
-									relativeDir === undefined
-										? workspacePath
-										: RelativePath.makeUnsafe(
-												file.replace(withTrailingSlash(relativeDir), ""),
-											),
-								lockinfo,
-							});
-						}
-						return Result.failVoid;
-					}
-
-					if (relativeDir === undefined) {
-						return Result.succeed({
-							workspacePath,
-							file: workspacePath as WorkspacePath | RelativePath,
-							lockinfo,
-						});
-					}
-
-					if (!file.startsWith(withTrailingSlash(relativeDir))) {
-						return Result.failVoid;
-					}
-
-					return Result.succeed({
-						workspacePath,
-						file: RelativePath.makeUnsafe(
-							file.replace(withTrailingSlash(relativeDir), ""),
-						),
-						lockinfo,
-					});
-				}),
-				Stream.filter(({ file, lockinfo }) =>
-					fileFilter._tag === "None"
-						? true
-						: FileFilter.matches(fileFilter.value, file, lockinfo),
-				),
-			);
-
-			if (options?.refresh) {
-				const pending = yield* filteredFilesStream.pipe(
-					Stream.mapEffect(
-						Effect.fnUntraced(function* ({ file, workspacePath }) {
-							return {
-								path: file,
-								contextFiles: yield* Lockfile.fileContext(
-									workspace.lockfile,
-									workspacePath,
-									_reviewScope,
-								),
-							};
-						}),
-					),
-					Stream.runCollect,
-				);
-				return identity<Context0.PlanReturnType>({
-					pending,
-					reviewedWithFeedback: [],
-					reviewedWithoutFeedback: [],
-				}) as
-					| Context0.PlanReturnType<WorkspacePath>
-					| Context0.PlanReturnType<RelativePath>;
-			}
-
-			const plan = yield* pipe(
-				filteredFilesStream,
-				Stream.scanEffect(
-					identity<Context0.PlanReturnType>({
-						reviewedWithFeedback: [],
-						reviewedWithoutFeedback: [],
-						pending: [],
-					}),
-					Effect.fnUntraced(function* (acc, { file, lockinfo, workspacePath }) {
-						const contextFiles = yield* Lockfile.fileContext(
-							workspace.lockfile,
-							workspacePath,
-							_reviewScope,
-						);
-
-						if (lockinfo.hash._tag === "None") {
-							return {
-								...acc,
-								pending: Array.append(acc.pending, {
-									path: file,
-									contextFiles,
-								}),
-							};
-						}
-
-						const hash = yield* fileHasher.hash(
-							workspace,
-							workspacePath,
-							_reviewScope,
-						);
-						if (lockinfo.hash.value !== hash) {
-							return {
-								...acc,
-								pending: Array.append(acc.pending, {
-									path: file,
-									contextFiles,
-								}),
-							};
-						}
-
-						const cacheExists = yield* cache.has(hash);
-						if (cacheExists) {
-							return {
-								...acc,
-								reviewedWithFeedback: Array.append(acc.reviewedWithFeedback, {
-									path: file,
-									contextFiles,
-								}),
-							};
-						}
-
-						return {
-							...acc,
-							reviewedWithoutFeedback: Array.append(
-								acc.reviewedWithoutFeedback,
-								{ path: file, contextFiles },
-							),
-						};
-					}),
-				),
-				Stream.runLast,
-			);
-
-			return Option.getOrElse(plan, () => ({
-				pending: [],
-				reviewedWithFeedback: [],
-				reviewedWithoutFeedback: [],
-			})) as
-				| Context0.PlanReturnType<WorkspacePath>
-				| Context0.PlanReturnType<RelativePath>;
-		});
-});
 
 const _makeSync = Effect.gen(function* () {
 	const { discover } = yield* WorkspaceService;
@@ -362,7 +155,6 @@ const _makeSync = Effect.gen(function* () {
 							Option.map(Array.appendAll(Array.fromIterable(tags))),
 							Option.getOrElse(() => Array.fromIterable(tags)),
 						),
-						hash: Option.flatMap(oldLockinfo, ({ hash }) => hash),
 					}),
 				] as const;
 			}),
@@ -504,282 +296,20 @@ const _makeDescribe = Effect.gen(function* () {
 	});
 });
 
-const _makeReview = Effect.gen(function* () {
-	const { discover } = yield* WorkspaceService;
-	const cliAgentClient = yield* CliAgentClient;
-	const fileHasher = yield* FileHasher;
-	const fs = yield* FileSystem.FileSystem;
-	const path = yield* Path.Path;
-	const makePlan = yield* _makePlan;
-
-	const _buildReviewContextFile = (params: {
-		relativePath: RelativePath;
-		description: string;
-	}) => {
-		return pipe(
-			Constants.REVIEW_CONTEXT_FILE_TEMPLATE,
-			String.replaceAll(
-				Constants.REVIEW_CONTEXT_FILE_PLACEHOLDERS.RELATIVE_PATH,
-				params.relativePath,
-			),
-			String.replaceAll(
-				Constants.REVIEW_CONTEXT_FILE_PLACEHOLDERS.DESCRIPTION,
-				params.description,
-			),
-		);
-	};
-
-	const _buildReviewPrompt = (params: {
-		targetFilePath: RelativePath;
-		targetFileDescription: string;
-		contextFiles: string[];
-	}) => {
-		return pipe(
-			Constants.REVIEW_PROMPT,
-			String.replaceAll(
-				Constants.REVIEW_PROMPT_PLACEHOLDERS.TARGET_FILE_PATH,
-				params.targetFilePath,
-			),
-			String.replaceAll(
-				Constants.REVIEW_PROMPT_PLACEHOLDERS.TARGET_FILE_DESCRIPTION,
-				params.targetFileDescription,
-			),
-			String.replaceAll(
-				Constants.REVIEW_PROMPT_PLACEHOLDERS.CONTEXT_FILES,
-				params.contextFiles.join("\n"),
-			),
-		);
-	};
-
-	return Effect.fn("review")(function* (
-		options: Context0.ReviewOptions | undefined,
-	) {
-		const operationProgress = yield* OperationProgress;
-		const activeReviewFiles = yield* ActiveReviewFiles;
-		const workspace = yield* discover();
-		const plan: Context0.PlanReturnType = yield* makePlan(workspace)(options);
-		const cwd = options?.dir ?? workspace.rootDir;
-		const actualLockfile = yield* Ref.make(workspace.lockfile);
-
-		const cache = yield* pipe(
-			KeyValueStore.KeyValueStore.asEffect(),
-			Effect.provide(KeyValueStore.layerFileSystem(workspace.cacheDir)),
-			Effect.provideService(Path.Path, path),
-			Effect.provideService(FileSystem.FileSystem, fs),
-		);
-
-		yield* Ref.set(operationProgress.total, plan.pending.length);
-
-		return pipe(
-			Stream.fromIterable(plan.pending),
-			Stream.tap(({ path }) =>
-				Ref.update(activeReviewFiles, HashSet.add(path)),
-			),
-			Stream.mapEffect(
-				Effect.fnUntraced(function* ({ path: file, contextFiles }) {
-					const workspacePath = SchemaParser.is(WorkspacePath)(file)
-						? file
-						: WorkspacePath.makeUnsafe(
-								path.resolve(cwd, file).replace(workspace.rootDir, "/"),
-							);
-					const absolutePath = AbsolutePath.makeUnsafe(
-						path.resolve(workspace.rootDir, workspacePath.replace("/", ".")),
-					);
-					const relativePath = RelativePath.makeUnsafe(
-						absolutePath.replace(withTrailingSlash(workspace.rootDir), ""),
-					);
-
-					const hash = yield* fileHasher.hash(
-						workspace,
-						workspacePath,
-						_reviewScope,
-					);
-
-					if (contextFiles.length === 0) {
-						return {
-							hash,
-							absolutePath,
-							workspacePath,
-							relativePath,
-							path: file,
-							feedback: [],
-						};
-					}
-
-					if (yield* cache.has(hash)) {
-						const loadedRawFeedback = yield* cache.get(hash);
-						const feedback = yield* pipe(
-							Effect.sync(() => load(loadedRawFeedback ?? "")),
-							Effect.andThen(
-								SchemaParser.decodeUnknownEffect(Feedback.Feedback),
-							),
-						);
-						return {
-							hash,
-							absolutePath,
-							workspacePath,
-							relativePath,
-							path: file,
-							feedback,
-						};
-					}
-
-					const rawFeedback = yield* cliAgentClient
-						.query({
-							cwd: workspace.rootDir,
-							prompt: _buildReviewPrompt({
-								targetFilePath: relativePath,
-								targetFileDescription: yield* Lockfile.fileInfo(
-									yield* Ref.get(actualLockfile),
-									workspacePath,
-								).pipe(
-									Result.map(({ annotations }) => annotations),
-									Result.map(Option.flatMap(({ description }) => description)),
-									Result.map(Option.getOrElse(() => "")),
-								),
-								contextFiles: yield* Effect.forEach(
-									contextFiles,
-									Effect.fnUntraced(function* (contextFile) {
-										const absolutePath = AbsolutePath.makeUnsafe(
-											path.resolve(
-												workspace.rootDir,
-												contextFile.replace("/", "."),
-											),
-										);
-										return _buildReviewContextFile({
-											relativePath: RelativePath.makeUnsafe(
-												absolutePath.replace(
-													withTrailingSlash(workspace.rootDir),
-													"",
-												),
-											),
-											description: yield* Lockfile.fileInfo(
-												yield* Ref.get(actualLockfile),
-												contextFile,
-											).pipe(
-												Result.map(({ annotations }) => annotations),
-												Result.map(
-													Option.flatMap(({ description }) => description),
-												),
-												Result.map(Option.getOrElse(() => "")),
-											),
-										});
-									}),
-								),
-							}),
-						})
-						.pipe(
-							Effect.provideService(
-								CliAgents,
-								options?.cliAgent ? [options.cliAgent] : yield* CliAgents,
-							),
-						);
-
-					return {
-						hash,
-						absolutePath,
-						workspacePath,
-						relativePath,
-						path: file,
-						feedback: yield* Feedback.fromLlmOutput(
-							rawFeedback,
-							workspace.rootDir,
-						).pipe(
-							Effect.provideService(FileSystem.FileSystem, fs),
-							Effect.provideService(Path.Path, path),
-						),
-					};
-				}),
-				{
-					concurrency: options?.parallel ?? 10,
-					unordered: true,
-				},
-			),
-			Stream.tap(() =>
-				Ref.update(operationProgress.current, (current) => current + 1),
-			),
-			Stream.tap(({ path }) =>
-				Ref.update(activeReviewFiles, HashSet.remove(path)),
-			),
-			Stream.tap(
-				Effect.fnUntraced(function* ({ feedback, hash }) {
-					const encodedFeedback = yield* SchemaParser.encodeEffect(
-						Feedback.Feedback,
-					)(feedback);
-					yield* cache.set(hash, YamlSerializer.serialize(encodedFeedback));
-				}),
-			),
-			Stream.tap(
-				Effect.fnUntraced(function* ({ feedback, relativePath, hash }) {
-					const containsRedLevel = feedback.some(
-						({ level }) => Option.getOrUndefined(level) === "red",
-					);
-					if (containsRedLevel) return;
-
-					const newLockfile = yield* Ref.updateAndGet(
-						actualLockfile,
-						(actualLockfile) => {
-							return Record.set(
-								actualLockfile,
-								relativePath,
-								identity<Lockfile.Lockfile[RelativePath]>({
-									annotations: pipe(
-										Record.get(actualLockfile, relativePath),
-										Option.flatMap(({ annotations }) => annotations),
-									),
-									tags: pipe(
-										Record.get(actualLockfile, relativePath),
-										Option.map(({ tags }) => tags),
-										Option.getOrElse(() => []),
-									),
-									hash: Option.some(hash),
-								}),
-							);
-						},
-					);
-
-					yield* fs.writeFileString(
-						path.resolve(workspace.rootDir, Constants.CONTEXT0_LOCK_FILE_NAME),
-						Lockfile.toString(newLockfile),
-					);
-				}),
-			),
-			Stream.map(({ feedback, path }) =>
-				identity<Context0.ReviewReturnType>({
-					feedback,
-					path,
-				}),
-			),
-		);
-	});
-});
-
 /**
  * @group Layers
  */
 export const layer = Layer.effect(
 	Context0.Context0,
 	Effect.gen(function* () {
-		const { discover } = yield* WorkspaceService;
-
-		const makePlan = yield* _makePlan;
 		const sync = yield* _makeSync;
 		const search = yield* _makeSearch;
 		const describe = yield* _makeDescribe;
-		const review = yield* _makeReview;
 
 		return {
 			sync: flow(sync, Effect.orDie),
 			search: flow(search, Effect.orDie),
 			describe: flow(describe, Effect.orDie),
-			check: Effect.fn("check")(function* () {
-				return 1 as any;
-			}),
-			review: flow(review, Effect.map(Stream.orDie), Effect.orDie),
-			plan: Effect.fnUntraced(function* (options) {
-				const workspace = yield* discover();
-				return yield* makePlan(workspace)(options);
-			}, Effect.orDie),
 		};
 	}),
 );
@@ -788,10 +318,5 @@ export const layer = Layer.effect(
  * @group Layers
  */
 export const live = layer.pipe(
-	Layer.provide([
-		WorkspaceServiceProvider.live,
-		CheckRunnerProvider.live,
-		CliAgentClientProvider.live,
-		FileHasherProvider.live,
-	]),
+	Layer.provide([WorkspaceServiceProvider.live, CheckRunnerProvider.live]),
 );

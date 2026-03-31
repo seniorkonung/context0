@@ -13,7 +13,6 @@ import { glob } from "fast-glob";
 import { load } from "js-yaml";
 
 import {
-	CONTEXT0_CACHE_DIRECTORY,
 	CONTEXT0_CONFIG_FILE_NAME,
 	CONTEXT0_LOCK_FILE_DEFAULT_CONTENT,
 	CONTEXT0_LOCK_FILE_NAME,
@@ -146,9 +145,6 @@ const _makeDiscover = Effect.gen(function* () {
 			lockfile,
 			rootConfig,
 			rootDir,
-			cacheDir: AbsolutePath.makeUnsafe(
-				path.resolve(rootDir, CONTEXT0_CACHE_DIRECTORY),
-			),
 		});
 	});
 });

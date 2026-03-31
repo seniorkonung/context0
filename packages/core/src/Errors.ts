@@ -3,7 +3,6 @@ import type * as SchemaIssue from "effect/SchemaIssue";
 
 import {
 	type AbsolutePath,
-	type CliAgent,
 	type FileQuery,
 	type Tag,
 	type WorkspacePath,
@@ -108,26 +107,3 @@ export class InvalidFileQuery extends Data.TaggedError("InvalidFileQuery")<{
  */
 // biome-ignore lint/complexity/noBannedTypes: Никаких методанных не требуется
 export class ShellNotFound extends Data.TaggedError("ShellNotFound")<{}> {}
-
-/**
- * @group Errors
- */
-export class CliAgentNotFound extends Data.TaggedError("CliAgentNotFound")<{
-	readonly cliAgents?: ReadonlyArray<CliAgent>;
-}> {}
-
-/**
- * @group Errors
- */
-export class CliAgentCrash extends Data.TaggedError("CliAgentCrash")<{
-	readonly exitCode: number;
-	readonly stderr: string;
-}> {}
-
-/**
- * @group Errors
- */
-export class FileNotInDirectory extends Data.TaggedError("FileNotInDirectory")<{
-	readonly file: AbsolutePath;
-	readonly dir: AbsolutePath;
-}> {}

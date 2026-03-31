@@ -74,20 +74,6 @@ export type Tag = Schema.Schema.Type<typeof Tag>;
 /**
  * @group Schemas
  */
-export const CliAgent = Schema.Literals(["claude"])
-	.pipe(Schema.encodeTo(Schema.String))
-	.annotate({
-		identifier: "CliAgent",
-	});
-
-/**
- * @group Models
- */
-export type CliAgent = Schema.Schema.Type<typeof CliAgent>;
-
-/**
- * @group Schemas
- */
 export const FileQuery = Schema.NonEmptyString.pipe(
 	Schema.brand("FileQuery"),
 ).annotate({

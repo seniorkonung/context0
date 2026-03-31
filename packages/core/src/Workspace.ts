@@ -15,7 +15,6 @@ import { withTrailingSlash } from "./Utils.js";
 export interface Workspace {
 	readonly _tag: "Workspace";
 	readonly rootDir: AbsolutePath;
-	readonly cacheDir: AbsolutePath;
 	readonly rootConfig: Option.Option<RootConfig>;
 	readonly entrypoints: ReadonlyArray<{
 		readonly dir: AbsolutePath;
