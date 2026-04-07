@@ -7,3 +7,27 @@ dist/
 .repos/
 
 .env
+
+# ── GSD baseline (auto-generated) ──
+.gsd
+.gsd-id
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.idea/
+.vscode/
+*.code-workspace
+.env.*
+!.env.example
+.next/
+__pycache__/
+*.pyc
+.venv/
+venv/
+target/
+vendor/
+*.log
+coverage/
+tmp/
